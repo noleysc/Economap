@@ -1,18 +1,6 @@
-# Logs & Screenshots
-*.log
-*.png
-debug-*.png
-
-# Dependencies
 node_modules/
 __pycache__/
-*.pyc
-venv/
-
-# OS/IDEs
+*.png
+debug-*.png
 .DS_Store
-.env
-.vscode/
-
-# Build artifacts
-dist/
+venv/
