@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const navLinks = [
-  { name: "Daily Run", href: "/", icon: "🏃" },
-  { name: "Deals", href: "/deals", icon: "💰" },
-  { name: "Shopping List", href: "/shopping-list", icon: "🛒" },
-  { name: "Premium", href: "/premium", icon: "✨" },
-  { name: "Community", href: "/community", icon: "🧑‍🤝‍🧑" },
-];
+
 
 export const TopNav = () => {
   const pathname = usePathname();
@@ -21,17 +15,36 @@ export const TopNav = () => {
       </div>
       <div className="navbar-center overflow-x-auto w-full">
         <ul className="menu menu-horizontal px-1">
-        {navLinks.map((link) => {
-            const isActive = pathname === link.href;
-            return (
-                <li key={link.name}>
-                    <Link href={link.href} className={isActive ? "active" : ""}>
-                        <span className="text-xl">{link.icon}</span>
-                        {link.name}
-                    </Link>
-                </li>
-            )
-        })}
+          <li>
+            <Link href="/" className={pathname === "/" ? "active" : ""}>
+              <span className="text-xl">🏃</span>
+              Daily Run
+            </Link>
+          </li>
+          <li>
+            <Link href="/deals" className={pathname === "/deals" ? "active" : ""}>
+              <span className="text-xl">💰</span>
+              Deals
+            </Link>
+          </li>
+          <li>
+            <Link href="/shopping-list" className={pathname === "/shopping-list" ? "active" : ""}>
+              <span className="text-xl">🛒</span>
+              Shopping List
+            </Link>
+          </li>
+          <li>
+            <Link href="/premium" className={pathname === "/premium" ? "active" : ""}>
+              <span className="text-xl">✨</span>
+              Premium
+            </Link>
+          </li>
+          <li>
+            <Link href="/community" className={pathname === "/community" ? "active" : ""}>
+              <span className="text-xl">🧑‍🤝‍🧑</span>
+              Community
+            </Link>
+          </li>
         </ul>
       </div>
       <div className="navbar-end">

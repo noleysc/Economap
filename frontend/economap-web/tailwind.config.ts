@@ -35,6 +35,7 @@ const config: Config = {
         },
       },
     ],
+    darkTheme: "clearcart",
   },
 }
 export default config
