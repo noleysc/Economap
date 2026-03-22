@@ -9,7 +9,7 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "scrape": "ts-node scraper.ts",
+    "scrape": "NODE_OPTIONS=--loader=ts-node/esm ts-node --esm scraper.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
