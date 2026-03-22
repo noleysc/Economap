@@ -1,20 +1,19 @@
 'use client';
 
-import { Store, GasStation } from '@/types';
+import { Store, GasStation, RouteSummary } from '@/types';
+import { useLocationStore } from '@/store/useLocationStore';
+import { useMemo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet'; // Import Leaflet for custom icon
-
-// Import the RoutingMachine component dynamically
-const RoutingMachine = dynamic(
-  () => import('./RoutingMachine').then((mod) => mod.default),
-  { ssr: false }
-);
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import RoutingMachine from './routing-machine';
+import userLocationIcon from './user-location-marker';
 
 interface PriceMapProps {
   stores: Store[];
   onStoreClick: (id: string) => void;
-  waypoints?: [number, number][];
+  waypoints?: { lat: number; lng: number }[];
   gasStations?: GasStation[]; // Add gasStations prop
 }
 
@@ -29,40 +28,33 @@ const gasStationIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const MapContainer = dynamic(
-  () => import('react-leaflet').then((mod) => {
-    const L = require('leaflet');
-    // Fix for default icon not showing
-    delete L.Icon.Default.prototype._getIconUrl;
+export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: PriceMapProps) => {
+  const { latitude, longitude } = useLocationStore();
+
+  useEffect(() => {
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
     L.Icon.Default.mergeOptions({
       iconRetinaUrl: '/images/leaflet/marker-icon-2x.png',
       iconUrl: '/images/leaflet/marker-icon.png',
       shadowUrl: '/images/leaflet/marker-shadow.png',
     });
-    return mod.MapContainer;
-  }),
-  { ssr: false }
-);
-const TileLayer = dynamic(
-  () => import('react-leaflet').then((mod) => mod.TileLayer),
-  { ssr: false }
-);
-const Marker = dynamic(
-  () => import('react-leaflet').then((mod) => mod.Marker),
-  { ssr: false }
-);
-const Popup = dynamic(
-  () => import('react-leaflet').then((mod) => mod.Popup),
-  { ssr: false }
-);
+  }, []);
 
-export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: PriceMapProps) => {
-  console.log("PriceMap received gasStations:", gasStations); // Debug log
   // Default center if no stores are provided, or calculate from stores
   const defaultCenter: [number, number] = [34.052235, -118.243683]; // Los Angeles coordinates
-  const mapCenter = stores.length > 0 
-    ? [stores[0].coordinates.lat, stores[0].coordinates.lng] 
+  const mapCenter = latitude && longitude
+    ? [latitude, longitude]
+    : stores.length > 0
+    ? [stores[0].coordinates.lat, stores[0].coordinates.lng]
     : defaultCenter;
+
+  if (!latitude || !longitude) {
+    return (
+      <div className="h-[500px] w-full rounded-lg relative z-0 border border-border shadow-lg overflow-hidden flex items-center justify-center">
+        <p>Loading map...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[500px] w-full rounded-lg relative z-0 border border-border shadow-lg overflow-hidden">
@@ -71,6 +63,9 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
           attribution='&copy; <a href="https://www.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <Marker position={[latitude, longitude]} icon={userLocationIcon}>
+          <Popup>You are here</Popup>
+        </Marker>
         {stores.map((store) => (
           <Marker 
             key={store.id} 
@@ -113,7 +108,7 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
         ))}
 
         {waypoints && waypoints.length >= 2 && (
-          <RoutingMachine waypoints={waypoints} />
+          <RoutingMachine key={waypoints.map(p => p.lat).join('_')} waypoints={waypoints.map(p => L.latLng(p.lat, p.lng))} />
         )}
       </MapContainer>
     </div>

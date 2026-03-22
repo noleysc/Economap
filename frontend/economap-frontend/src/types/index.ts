@@ -40,3 +40,8 @@ export interface ShoppingTrip {
   stores: Store[];
   optimizedRoute: string[]; // Array of Store IDs
 }
+
+export interface RouteSummary {
+  totalDistance: number;
+  totalTime: number;
+}
