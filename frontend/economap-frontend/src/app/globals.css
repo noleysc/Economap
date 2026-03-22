@@ -1,0 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+
+  /* Custom Colors */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  /* Custom Colors */
+  --primary: 75 94% 39%; /* #4CAF50 converted to HSL */
+  --primary-foreground: 0 0% 100%; /* #FFFFFF converted to HSL */
+  --secondary: 207 90% 55%; /* #2196F3 converted to HSL */
+  --secondary-foreground: 0 0% 100%; /* #FFFFFF converted to HSL */
+  --accent: 45 100% 50%; /* #FFC107 converted to HSL */
+  --accent-foreground: 0 0% 20%; /* #333333 converted to HSL */
+
+  --background: 0 0% 96%; /* #F5F5F5 converted to HSL */
+  --foreground: 0 0% 20%; /* #333333 converted to HSL */
+  --border: 0 0% 88%; /* #E0E0E0 converted to HSL */
+  --input: 0 0% 88%; /* #E0E0E0 converted to HSL */
+  --ring: 0 0% 70%; /* A darker shade for ring */
+
+  /* Default shadcn/ui radius, keep if needed */
+  --radius: 0.625rem;
+
+  /* Re-assign font-sans to Inter */
+  --font-sans: 'Inter';
+}
+
+.dark {
+  /* Custom Colors for Dark Mode (example, adjust as needed) */
+  --primary: 75 94% 45%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 207 90% 65%;
+  --secondary-foreground: 0 0% 100%;
+  --accent: 45 100% 60%;
+  --accent-foreground: 0 0% 10%;
+
+  --background: 220 14% 10%; /* Dark background */
+  --foreground: 0 0% 90%; /* Light foreground */
+  --border: 220 14% 20%;
+  --input: 220 14% 20%;
+  --ring: 220 14% 30%;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
