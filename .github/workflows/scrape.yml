@@ -18,5 +18,6 @@ jobs:
         run: npm install
       - name: Install Browsers
         run: npx playwright install --with-deps chromium firefox
-      - name: Run Scraper
-        run: npm run scrape
+      - name: Run Scraper in Virtual Monitor
+        # xvfb-run creates a fake display so headless: false works in the cloud
+        run: xvfb-run npm run scrape
