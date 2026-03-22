@@ -17,5 +17,4 @@ jobs:
       - name: Install Browsers
         run: npx playwright install --with-deps chromium firefox
       - name: Run Scraper
-        # Using the ESM loader flag for the cloud pounce
         run: npm run scrape
