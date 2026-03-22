@@ -43,6 +43,10 @@ export default function Home() {
 
   const handleStoreClick = (id: string) => {
     setSelectedStoreId(id);
+    const mapElement = document.getElementById('price-map');
+    if (mapElement) {
+      mapElement.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
 
@@ -92,15 +96,20 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-start p-8 bg-background text-foreground font-sans">
-      <h1 className="text-4xl font-bold mb-8 text-primary">EconoMap - Your Trip</h1>
+      <h1 className="text-4xl font-bold mb-8 text-primary flex items-center justify-center">
+        <img src="/AppIcon.png" alt="Economap icon" className="w-12 h-12 mr-4 rounded-lg" />
+        <span>EconoMap - Your Trip</span>
+      </h1>
       <div className="flex flex-col md:flex-row w-full max-w-5xl gap-8">
         <div className="flex flex-col items-center w-full">
+          <div id="price-map" className="w-full h-[500px] mb-8 rounded-lg shadow-lg overflow-hidden border-2 border-primary-dark">
             <PriceMap
               stores={mapStores}
               onStoreClick={handleStoreClick}
               waypoints={storeWaypoints}
               gasStations={undefined}
             />
+            </div>
 
             {selectedProducts.length === 0 && (
               <div className="mt-8 p-6 border border-border rounded-lg shadow-lg bg-white w-full max-w-md animate-fade-in">
@@ -108,7 +117,7 @@ export default function Home() {
               </div>
             )}
           <Link href="/products" className="w-full max-w-sm">
-            <button className="mt-8 w-full bg-primary text-primary-foreground py-3 px-6 rounded-lg shadow-md hover:bg-primary-dark transition-all duration-300 ease-in-out transform hover:scale-105">
+            <button className="mt-8 w-full bg-blue-500 text-white py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-all duration-300 ease-in-out transform hover:scale-105">
               Select Products for Trip
             </button>
           </Link>

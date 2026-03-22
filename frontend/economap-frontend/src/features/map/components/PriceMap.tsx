@@ -2,9 +2,10 @@
 
 import { Store, GasStation, RouteSummary } from '@/types';
 import { useLocationStore } from '@/store/useLocationStore';
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import L from 'leaflet'; // Import Leaflet for custom icon
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import RoutingMachine from './routing-machine';
@@ -56,8 +57,18 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
     );
   }
 
+  const [itineraryCollapsed, setItineraryCollapsed] = useState(false);
+
   return (
-    <div className="h-[500px] w-full rounded-lg relative z-0 border border-border shadow-lg overflow-hidden">
+    <div className={`h-[500px] w-full rounded-lg relative z-0 border border-border shadow-lg overflow-hidden ${itineraryCollapsed ? 'itinerary-collapsed' : ''}`}>
+      <button 
+        className="absolute top-2 right-2 z-10 bg-white p-1 rounded-full shadow-md"
+        onClick={() => setItineraryCollapsed(!itineraryCollapsed)}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${itineraryCollapsed ? 'transform rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
       <MapContainer center={mapCenter as [number, number]} zoom={13} scrollWheelZoom={false} className="h-full w-full">
         <TileLayer
           attribution='&copy; <a href="https://www.org/copyright">OpenStreetMap</a> contributors'

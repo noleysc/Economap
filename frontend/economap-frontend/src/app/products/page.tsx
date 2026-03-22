@@ -28,7 +28,7 @@ export default function ProductsPage() {
             />
           </div>
           <Link href="/" className="w-full max-w-md mt-4">
-            <button className="w-full bg-primary text-primary-foreground py-3 px-6 rounded-lg shadow-md hover:bg-primary-dark transition-all duration-300 ease-in-out transform hover:scale-105">
+            <button className="w-full bg-blue-500 text-white py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-all duration-300 ease-in-out transform hover:scale-105">
               Plan Trip
             </button>
           </Link>

@@ -20,9 +20,9 @@ const config = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: "#4CAF50", // Green
+          DEFAULT: "#90EE90", // Light Green
           dark: "#43A047", // Slightly darker green for hover
-          foreground: "#FFFFFF",
+          foreground: "#333333",
         },
         secondary: {
           DEFAULT: "#2196F3", // Blue

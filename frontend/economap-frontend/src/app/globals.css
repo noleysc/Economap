@@ -27,14 +27,14 @@
 
 :root {
   /* Custom Colors */
-  --primary: 75 94% 39%; /* #4CAF50 converted to HSL */
+  --primary: 120 73% 75%; /* #90ee90 converted to HSL */
   --primary-foreground: 0 0% 100%; /* #FFFFFF converted to HSL */
   --secondary: 207 90% 55%; /* #2196F3 converted to HSL */
   --secondary-foreground: 0 0% 100%; /* #FFFFFF converted to HSL */
   --accent: 45 100% 50%; /* #FFC107 converted to HSL */
   --accent-foreground: 0 0% 20%; /* #333333 converted to HSL */
 
-  --background: 0 0% 96%; /* #F5F5F5 converted to HSL */
+  --background: 0 0% 85%; /* gray */
   --foreground: 0 0% 20%; /* #333333 converted to HSL */
   --border: 0 0% 88%; /* #E0E0E0 converted to HSL */
   --input: 0 0% 88%; /* #E0E0E0 converted to HSL */
@@ -49,7 +49,7 @@
 
 .dark {
   /* Custom Colors for Dark Mode (example, adjust as needed) */
-  --primary: 75 94% 45%;
+  --primary: 125 42% 57%;
   --primary-foreground: 0 0% 100%;
   --secondary: 207 90% 65%;
   --secondary-foreground: 0 0% 100%;
@@ -73,4 +73,22 @@
   html {
     @apply font-sans;
   }
+}
+
+.itinerary-collapsed .leaflet-routing-container {
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out;
+  width: 0;
+  overflow: hidden;
+}
+
+.leaflet-routing-container {
+  transition: transform 0.3s ease-in-out;
+  transform: translateX(0);
+}
+
+.leaflet-routing-container {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
