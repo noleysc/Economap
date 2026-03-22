@@ -4,3 +4,7 @@ __pycache__/
 debug-*.png
 .DS_Store
 venv/
+test-results/
+node_modules/
+.env
+.DS_Store
