@@ -8,12 +8,12 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Pouncing on the 2026 standard
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24' # Updated for the June 2026 requirement
+          node-version: '24'
       - name: Install Dependencies
         run: npm install
       - name: Install Browsers
