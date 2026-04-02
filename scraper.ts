@@ -28,7 +28,7 @@ async function getBrowser(type: 'chromium' | 'firefox'): Promise<Browser> {
 }
 
 async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
-  console.log('[Status] Hunting Sam\'s Club...');
+  console.log("[Status] Hunting Sam's Club...");
   const url = `https://www.samsclub.com/s/${encodeURIComponent(searchItem)}?clubId=${STORES.SAMS.id}`;
   let browser = await getBrowser('chromium');
   try {
@@ -41,7 +41,7 @@ async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
     if (price > 0) return { name, price };
     throw new Error('Invalid Price');
   } catch {
-    console.warn('[Retry] Sam\'s Club Fallback...');
+    console.warn("[Retry] Sam's Club Fallback...");
     await browser.close();
     browser = await getBrowser('firefox');
     const page = await browser.newPage();
@@ -53,7 +53,7 @@ async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
 }
 
 async function scrapeWalmart(): Promise<{ name: string; price: number }> {
-  console.log('[Status] Hunting Walmart...');
+  console.log("[Status] Hunting Walmart...");
   const url = searchItem.includes('banana') ? 'https://www.walmart.com/search?q=44390948&sort=price_low' : `https://www.walmart.com/search?q=${encodeURIComponent(searchItem)}+fresh&sort=price_low`;
   const browser = await getBrowser('chromium');
   try {
@@ -63,8 +63,7 @@ async function scrapeWalmart(): Promise<{ name: string; price: number }> {
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     const name = await page.locator('[data-automation-id="product-title"]').first().innerText();
     const rawPrice = await page.locator('[data-automation-id="product-price"]').first().innerText();
-    return { name, price: parsePrice(rawPrice.split('
-')[0]) };
+    return { name, price: parsePrice(rawPrice.split('\n')[0]) };
   } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
 }
 
@@ -72,9 +71,9 @@ async function runEconomap() {
   const [walmart, sams] = await Promise.all([scrapeWalmart(), scrapeSamsClub()]);
   const results = [];
   if (walmart.price > 0) results.push({ store: 'Walmart', name: walmart.name, price: walmart.price });
-  if (sams.price > 0) results.push({ store: 'Sam\'s Club', name: sams.name, price: sams.price });
+  if (sams.price > 0) results.push({ store: "Sam's Club", name: sams.name, price: sams.price });
   const report = results.map(res => {
-    const isBulk = res.store === 'Sam\'s Club';
+    const isBulk = res.store === "Sam's Club";
     const multiplier = searchItem.includes('banana') ? (isBulk ? 1 : 7) : 1;
     const total = res.price * (isBulk ? 1 : multiplier);
     return { Store: res.store, Product: res.name.substring(0, 30), Unit: `$${res.price.toFixed(2)}`, Bulk: `$${total.toFixed(2)}`, _raw: total };
