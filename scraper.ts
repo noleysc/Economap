@@ -11,7 +11,7 @@ const supabase = createClient(
 
 const searchItem = (process.env.SEARCH_ITEM || 'banana').toLowerCase();
 const isCloud = process.env.GITHUB_ACTIONS === 'true';
-const launchOptions = { headless: isCloud, slowMo: isCloud ? 0 : 50 };
+const launchOptions = { headless: isCloud, slowMo: isCloud ? 0 : 100 };
 
 const STORES = { 
   TARGET: { zip: '33912' }, 
@@ -20,7 +20,7 @@ const STORES = {
 };
 
 const mobileProfile = { 
-  userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15', 
+  userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1', 
   viewport: { width: 390, height: 844 }, 
   isMobile: true 
 };
@@ -50,14 +50,14 @@ async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
   try {
     const context = await browser.newContext(mobileProfile);
     const page = await context.newPage();
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    // Wait for the bulk price to hydrate properly
-    await page.waitForTimeout(4000);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    // Wait for price hydration specifically
+    const priceSelector = '[data-automation-id="product-price"]';
+    await page.waitForSelector(priceSelector, { state: 'visible', timeout: 15000 });
     const card = page.locator('[data-automation-id="product-card"]').first();
     const name = await card.locator('[data-automation-id="product-title"]').innerText();
-    const priceText = await card.locator('[data-automation-id="product-price"]').innerText();
-    const price = parsePrice(priceText);
-    return { name, price: price > 0.50 ? price : 1.47 }; // Sam's bulk safety
+    const priceText = await card.locator(priceSelector).innerText();
+    return { name, price: parsePrice(priceText) || 1.47 };
   } catch { return { name: "Not Found", price: 0 }; } finally { await browser.close(); }
 }
 
@@ -70,8 +70,10 @@ async function scrapeWalmart(): Promise<{ name: string; price: number }> {
     await context.addCookies([{ name: 'vtc', value: STORES.WALMART.id, domain: '.walmart.com', path: '/' }]);
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
+    const priceSelector = '[data-automation-id="product-price"]';
+    await page.waitForSelector(priceSelector, { timeout: 10000 });
     const name = await page.locator('[data-automation-id="product-title"]').first().innerText();
-    const priceText = await page.locator('[data-automation-id="product-price"]').first().innerText();
+    const priceText = await page.locator(priceSelector).first().innerText();
     return { name, price: parsePrice(priceText) };
   } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
 }
@@ -82,14 +84,14 @@ async function scrapeTarget(): Promise<{ name: string; price: number }> {
   try {
     const context = await browser.newContext(mobileProfile);
     const page = await context.newPage();
-    // Force Target to recognize the Fort Myers store
     await page.goto(`https://www.target.com/store-locator/find-stores/${STORES.TARGET.zip}`);
     await page.locator('button:has-text("shop this store")').first().click();
     await page.goto(`https://www.target.com/s?searchTerm=${encodeURIComponent(searchItem + " fresh")}`);
-    await page.waitForSelector('[data-test="current-price"]', { timeout: 10000 });
+    // Target uses dynamic price spans that load after the product grid
+    await page.waitForSelector('[data-test="current-price"]', { state: 'visible', timeout: 15000 });
     const name = await page.locator('a[data-test="product-title"]').first().innerText();
-    const price = parsePrice(await page.locator('[data-test="current-price"]').first().innerText());
-    return { name, price };
+    const priceText = await page.locator('[data-test="current-price"]').first().innerText();
+    return { name, price: parsePrice(priceText) };
   } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
 }
 
@@ -103,23 +105,12 @@ async function runEconomap() {
   const report = results.map(res => {
     const isBulk = res.store === "Sam's Club";
     const total = isBulk ? res.price : (res.price * 7);
-    return { 
-      Store: res.store, 
-      Product: res.name.substring(0, 30), 
-      Unit: `$${res.price.toFixed(2)}`, 
-      Bulk: `$${total.toFixed(2)}`, 
-      _raw: total 
-    };
+    return { Store: res.store, Product: res.name.substring(0, 30), Unit: `$${res.price.toFixed(2)}`, Bulk: `$${total.toFixed(2)}`, _raw: total };
   }).sort((a, b) => a._raw - b._raw);
   
   console.table(report.map(({_raw, ...c}) => c));
   if (isCloud && report.length > 0) {
-    await supabase.from('price_history').insert(report.map(r => ({ 
-      item_name: searchItem, 
-      store_name: r.Store, 
-      unit_price: parseFloat(r.Unit.replace('$', '')), 
-      bulk_matched_price: parseFloat(r.Bulk.replace('$', '')) 
-    })));
+    await supabase.from('price_history').insert(report.map(r => ({ item_name: searchItem, store_name: r.Store, unit_price: parseFloat(r.Unit.replace('$', '')), bulk_matched_price: parseFloat(r.Bulk.replace('$', '')) })));
   }
 }
 runEconomap().then(() => console.log('[Complete]'));
