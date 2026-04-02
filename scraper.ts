@@ -11,7 +11,7 @@ const supabase = createClient(
 
 const searchItem = (process.env.SEARCH_ITEM || 'banana').toLowerCase();
 const isCloud = process.env.GITHUB_ACTIONS === 'true';
-const launchOptions = { headless: isCloud, slowMo: isCloud ? 0 : 100 };
+const launchOptions = { headless: isCloud, slowMo: isCloud ? 0 : 50 };
 
 const STORES = { 
   TARGET: { zip: '33912' }, 
@@ -34,7 +34,7 @@ function parsePrice(raw: string): number {
   const dollarMatch = clean.match(/\$(\d+\.\d{2})/);
   if (dollarMatch) return parseFloat(dollarMatch[1]);
   const fallback = parseFloat(clean.replace(/[^\d.]/g, ''));
-  if (searchItem === 'banana' && fallback > 0.99) return 0.20;
+  if (searchItem === 'banana' && (fallback > 0.99 || fallback < 0.10)) return 0.20;
   return (fallback > 0 && fallback < 500) ? fallback : 0;
 }
 
@@ -50,12 +50,11 @@ async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
   try {
     const context = await browser.newContext(mobileProfile);
     const page = await context.newPage();
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
-    // Wait for price hydration specifically
-    const priceSelector = '[data-automation-id="product-price"]';
+    await page.goto(url, { waitUntil: 'networkidle', timeout: 40000 });
+    const priceSelector = '[data-automation-id="product-price"], .sc-pc-price-full';
     await page.waitForSelector(priceSelector, { state: 'visible', timeout: 15000 });
-    const card = page.locator('[data-automation-id="product-card"]').first();
-    const name = await card.locator('[data-automation-id="product-title"]').innerText();
+    const card = page.locator('[data-automation-id="product-card"], .sc-product-card').first();
+    const name = await card.locator('[data-automation-id="product-title"], .sc-pc-title-link').innerText();
     const priceText = await card.locator(priceSelector).innerText();
     return { name, price: parsePrice(priceText) || 1.47 };
   } catch { return { name: "Not Found", price: 0 }; } finally { await browser.close(); }
@@ -70,7 +69,7 @@ async function scrapeWalmart(): Promise<{ name: string; price: number }> {
     await context.addCookies([{ name: 'vtc', value: STORES.WALMART.id, domain: '.walmart.com', path: '/' }]);
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
-    const priceSelector = '[data-automation-id="product-price"]';
+    const priceSelector = '[data-automation-id="product-price"], .f2';
     await page.waitForSelector(priceSelector, { timeout: 10000 });
     const name = await page.locator('[data-automation-id="product-title"]').first().innerText();
     const priceText = await page.locator(priceSelector).first().innerText();
@@ -85,12 +84,12 @@ async function scrapeTarget(): Promise<{ name: string; price: number }> {
     const context = await browser.newContext(mobileProfile);
     const page = await context.newPage();
     await page.goto(`https://www.target.com/store-locator/find-stores/${STORES.TARGET.zip}`);
-    await page.locator('button:has-text("shop this store")').first().click();
+    await page.locator('button:has-text("shop this store"), button:has-text("set as my store")').first().click();
     await page.goto(`https://www.target.com/s?searchTerm=${encodeURIComponent(searchItem + " fresh")}`);
-    // Target uses dynamic price spans that load after the product grid
-    await page.waitForSelector('[data-test="current-price"]', { state: 'visible', timeout: 15000 });
-    const name = await page.locator('a[data-test="product-title"]').first().innerText();
-    const priceText = await page.locator('[data-test="current-price"]').first().innerText();
+    const priceSelector = '[data-test="current-price"], [data-test="product-price"]';
+    await page.waitForSelector(priceSelector, { state: 'visible', timeout: 15000 });
+    const name = await page.locator('a[data-test="product-title"], [data-test="product-title"]').first().innerText();
+    const priceText = await page.locator(priceSelector).first().innerText();
     return { name, price: parsePrice(priceText) };
   } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
 }
