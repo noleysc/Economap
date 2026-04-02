@@ -19,7 +19,8 @@ function parsePrice(raw: string): number {
   const clean = raw.replace(/[^\d.¢]/g, '');
   if (clean.includes('¢')) return parseFloat(clean.replace('¢', '')) / 100;
   const price = parseFloat(clean);
-  if (searchItem === 'banana' && price > 2.00) return 0; // Sanity check for unit price
+  // Boundary Test: Reject prices that are obviously wrong for a single unit
+  if (searchItem === 'banana' && (price > 1.50 || price < 0.10)) return 0;
   return (price > 0 && price < 500) ? price : 0;
 }
 
@@ -29,7 +30,7 @@ async function getBrowser(type: 'chromium' | 'firefox'): Promise<Browser> {
 }
 
 async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
-  console.log("[Status] Hunting Sam's Club (Fuzzy Match)...");
+  console.log("[Status] Hunting Sam's Club...");
   const url = `https://www.samsclub.com/s/${encodeURIComponent(searchItem)}?clubId=${STORES.SAMS.id}`;
   let browser = await getBrowser('chromium');
   try {
@@ -37,12 +38,14 @@ async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     const cards = page.locator('[data-automation-id="product-card"]');
-    for (let i = 0; i < Math.min(await cards.count(), 5); i++) {
+    for (let i = 0; i < Math.min(await cards.count(), 8); i++) {
         const name = await cards.nth(i).locator('[data-automation-id="product-title"]').innerText();
         const n = name.toLowerCase();
-        if (n.includes(searchItem) && !n.includes('cereal') && !n.includes('milk') && !n.includes('loops')) {
-            const price = parsePrice(await cards.nth(i).locator('[data-automation-id="product-price"]').innerText());
-            if (price > 0) return { name, price };
+        // Ignore cereal/snacks, look for the bulk banana price (usually $1.30 - $2.00 at Sam's)
+        if (n.includes(searchItem) && !n.includes('cereal') && !n.includes('loops')) {
+            const rawPrice = await cards.nth(i).locator('[data-automation-id="product-price"]').innerText();
+            const price = parseFloat(rawPrice.replace(/[^\d.]/g, ''));
+            if (price > 1.00 && price < 5.00) return { name, price };
         }
     }
     return { name: "Not Found", price: 0 };
@@ -50,20 +53,19 @@ async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
 }
 
 async function scrapeWalmart(): Promise<{ name: string; price: number }> {
-  console.log("[Status] Hunting Walmart (Fuzzy Match)...");
-  const url = `https://www.walmart.com/search?q=${encodeURIComponent(searchItem + " fresh")}&sort=price_low`;
+  console.log("[Status] Hunting Walmart...");
+  const url = `https://www.walmart.com/search?q=${encodeURIComponent(searchItem)}&sort=price_low`;
   const browser = await getBrowser('chromium');
   try {
     const context = await browser.newContext(mobileProfile);
     await context.addCookies([{ name: 'vtc', value: STORES.WALMART.id, domain: '.walmart.com', path: '/' }]);
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
-    const cards = page.locator('[data-automation-id="product-title"]');
-    for (let i = 0; i < Math.min(await cards.count(), 5); i++) {
-        const name = await cards.nth(i).innerText();
-        const n = name.toLowerCase();
-        if (n.includes(searchItem) && !n.includes('cereal')) {
-            const priceText = await page.locator('[data-automation-id="product-price"]').nth(i).innerText();
+    const cards = page.locator('[data-automation-id="product-card"], .mb1');
+    for (let i = 0; i < Math.min(await cards.count(), 10); i++) {
+        const name = (await cards.nth(i).locator('[data-automation-id="product-title"]').first().innerText()).toLowerCase();
+        if (name.includes(searchItem) && !name.includes('cereal')) {
+            const priceText = await cards.nth(i).locator('[data-automation-id="product-price"]').first().innerText();
             const price = parsePrice(priceText.split('\n')[0]);
             if (price > 0) return { name, price };
         }
