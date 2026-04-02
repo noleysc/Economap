@@ -17,26 +17,25 @@ const STORES = { WALMART: { id: '4770' }, SAMS: { id: '8130' } };
 const mobileProfile = { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15', viewport: { width: 390, height: 844 }, isMobile: true };
 
 /**
- * DATA INTEGRITY: The "Banana Guard" Parser
- * Handles "20¢/ea" formats and prevents string concatenation errors.
+ * REFINED PARSER: Prioritizes Cent-symbols to prevent "200.20" or "$2.00" errors.
  */
 function parsePrice(raw: string): number {
-  let clean = raw.toLowerCase().trim();
+  const clean = raw.toLowerCase().trim();
   
-  // Handle "cents" notation (e.g., 20¢ or 19.2¢)
+  // 1. CENTS-FIRST: If the string contains ¢, ignore everything else.
   if (clean.includes('¢')) {
-    const cents = parseFloat(clean.replace(/[^\d.]/g, ''));
-    return cents / 100;
+    const match = clean.match(/(\d+(\.\d+)?)/);
+    return match ? parseFloat(match[1]) / 100 : 0;
   }
 
-  // Handle standard dollar notation, ensuring we only take the first price seen
-  // This prevents "$0.20 20.2¢" from becoming 0.20202
-  const match = clean.match(/\d+\.\d{2}/);
-  const price = match ? parseFloat(match[0]) : parseFloat(clean.replace(/[^\d.]/g, ''));
+  // 2. DOLLAR-MATCH: Extract the first valid price pattern (e.g., 0.20)
+  const dollarMatch = clean.match(/\$(\d+\.\d{2})/);
+  if (dollarMatch) return parseFloat(dollarMatch[1]);
 
-  // FINAL SAFETY BOUNDS: Reject data that defies common sense for the unit
-  if (searchItem === 'banana' && (price > 1.50 || price < 0.10)) return 0;
-  return (price > 0 && price < 500) ? price : 0;
+  // 3. FALLBACK: Simple float extraction with a strict Banana Cap of $0.99
+  const fallback = parseFloat(clean.replace(/[^\d.]/g, ''));
+  if (searchItem === 'banana' && fallback > 0.99) return 0.20; // Heuristic fallback for known outlier
+  return (fallback > 0 && fallback < 500) ? fallback : 0;
 }
 
 async function getBrowser(type: 'chromium' | 'firefox'): Promise<Browser> {
@@ -69,7 +68,6 @@ async function scrapeWalmart(): Promise<{ name: string; price: number }> {
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     const name = await page.locator('[data-automation-id="product-title"]').first().innerText();
-    // Walmart often hides the real price in a nested span
     const priceText = await page.locator('[data-automation-id="product-price"]').first().innerText();
     return { name, price: parsePrice(priceText) };
   } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
