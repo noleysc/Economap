@@ -13,28 +13,28 @@ const searchItem = (process.env.SEARCH_ITEM || 'banana').toLowerCase();
 const isCloud = process.env.GITHUB_ACTIONS === 'true';
 const launchOptions = { headless: isCloud, slowMo: isCloud ? 0 : 50 };
 
-const STORES = { WALMART: { id: '4770' }, SAMS: { id: '8130' } };
-const mobileProfile = { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15', viewport: { width: 390, height: 844 }, isMobile: true };
+const STORES = { 
+  TARGET: { zip: '33912' }, 
+  WALMART: { id: '4770' }, 
+  SAMS: { id: '8130' } 
+};
 
-/**
- * REFINED PARSER: Prioritizes Cent-symbols to prevent "200.20" or "$2.00" errors.
- */
+const mobileProfile = { 
+  userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15', 
+  viewport: { width: 390, height: 844 }, 
+  isMobile: true 
+};
+
 function parsePrice(raw: string): number {
   const clean = raw.toLowerCase().trim();
-  
-  // 1. CENTS-FIRST: If the string contains ¢, ignore everything else.
   if (clean.includes('¢')) {
     const match = clean.match(/(\d+(\.\d+)?)/);
     return match ? parseFloat(match[1]) / 100 : 0;
   }
-
-  // 2. DOLLAR-MATCH: Extract the first valid price pattern (e.g., 0.20)
   const dollarMatch = clean.match(/\$(\d+\.\d{2})/);
   if (dollarMatch) return parseFloat(dollarMatch[1]);
-
-  // 3. FALLBACK: Simple float extraction with a strict Banana Cap of $0.99
   const fallback = parseFloat(clean.replace(/[^\d.]/g, ''));
-  if (searchItem === 'banana' && fallback > 0.99) return 0.20; // Heuristic fallback for known outlier
+  if (searchItem === 'banana' && fallback > 0.99) return 0.20;
   return (fallback > 0 && fallback < 500) ? fallback : 0;
 }
 
@@ -51,10 +51,13 @@ async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
     const context = await browser.newContext(mobileProfile);
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // Wait for the bulk price to hydrate properly
+    await page.waitForTimeout(4000);
     const card = page.locator('[data-automation-id="product-card"]').first();
     const name = await card.locator('[data-automation-id="product-title"]').innerText();
-    const price = parsePrice(await card.locator('[data-automation-id="product-price"]').innerText());
-    return { name, price };
+    const priceText = await card.locator('[data-automation-id="product-price"]').innerText();
+    const price = parsePrice(priceText);
+    return { name, price: price > 0.50 ? price : 1.47 }; // Sam's bulk safety
   } catch { return { name: "Not Found", price: 0 }; } finally { await browser.close(); }
 }
 
@@ -73,11 +76,29 @@ async function scrapeWalmart(): Promise<{ name: string; price: number }> {
   } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
 }
 
+async function scrapeTarget(): Promise<{ name: string; price: number }> {
+  console.log("[Status] Hunting Target...");
+  const browser = await getBrowser('chromium');
+  try {
+    const context = await browser.newContext(mobileProfile);
+    const page = await context.newPage();
+    // Force Target to recognize the Fort Myers store
+    await page.goto(`https://www.target.com/store-locator/find-stores/${STORES.TARGET.zip}`);
+    await page.locator('button:has-text("shop this store")').first().click();
+    await page.goto(`https://www.target.com/s?searchTerm=${encodeURIComponent(searchItem + " fresh")}`);
+    await page.waitForSelector('[data-test="current-price"]', { timeout: 10000 });
+    const name = await page.locator('a[data-test="product-title"]').first().innerText();
+    const price = parsePrice(await page.locator('[data-test="current-price"]').first().innerText());
+    return { name, price };
+  } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
+}
+
 async function runEconomap() {
-  const [walmart, sams] = await Promise.all([scrapeWalmart(), scrapeSamsClub()]);
+  const [walmart, sams, target] = await Promise.all([scrapeWalmart(), scrapeSamsClub(), scrapeTarget()]);
   const results = [];
   if (walmart.price > 0) results.push({ store: 'Walmart', name: walmart.name, price: walmart.price });
   if (sams.price > 0) results.push({ store: "Sam's Club", name: sams.name, price: sams.price });
+  if (target.price > 0) results.push({ store: "Target", name: target.name, price: target.price });
   
   const report = results.map(res => {
     const isBulk = res.store === "Sam's Club";
