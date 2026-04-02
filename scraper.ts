@@ -19,8 +19,7 @@ function parsePrice(raw: string): number {
   const clean = raw.replace(/[^\d.¢]/g, '');
   if (clean.includes('¢')) return parseFloat(clean.replace('¢', '')) / 100;
   const price = parseFloat(clean);
-  // DATA VALIDATION: Reject prices that are clearly placeholders or errors (like $20 for a banana)
-  if (searchItem === 'banana' && price > 2.00) return 0;
+  if (searchItem === 'banana' && price > 2.00) return 0; // Sanity check for unit price
   return (price > 0 && price < 500) ? price : 0;
 }
 
@@ -30,44 +29,40 @@ async function getBrowser(type: 'chromium' | 'firefox'): Promise<Browser> {
 }
 
 async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
-  console.log("[Status] Hunting Sam's Club (Strict Match)...");
-  const url = `https://www.samsclub.com/s/${encodeURIComponent("fresh " + searchItem)}?clubId=${STORES.SAMS.id}`;
+  console.log("[Status] Hunting Sam's Club (Fuzzy Match)...");
+  const url = `https://www.samsclub.com/s/${encodeURIComponent(searchItem)}?clubId=${STORES.SAMS.id}`;
   let browser = await getBrowser('chromium');
   try {
     const context = await browser.newContext(mobileProfile);
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    
-    // SEMANTIC FILTERING: Look for the first card that actually contains our keyword
     const cards = page.locator('[data-automation-id="product-card"]');
-    for (let i = 0; i < await cards.count(); i++) {
+    for (let i = 0; i < Math.min(await cards.count(), 5); i++) {
         const name = await cards.nth(i).locator('[data-automation-id="product-title"]').innerText();
-        // Reject if it mentions "Cereal", "Loops", or "Milk" when we want fresh fruit
-        if (name.toLowerCase().includes(searchItem) && !name.toLowerCase().includes('cereal')) {
+        const n = name.toLowerCase();
+        if (n.includes(searchItem) && !n.includes('cereal') && !n.includes('milk') && !n.includes('loops')) {
             const price = parsePrice(await cards.nth(i).locator('[data-automation-id="product-price"]').innerText());
             if (price > 0) return { name, price };
         }
     }
-    throw new Error('No Fresh Match Found');
-  } catch {
     return { name: "Not Found", price: 0 };
-  } finally { await browser.close(); }
+  } catch { return { name: "Not Found", price: 0 }; } finally { await browser.close(); }
 }
 
 async function scrapeWalmart(): Promise<{ name: string; price: number }> {
-  console.log("[Status] Hunting Walmart (Strict Match)...");
-  const url = `https://www.walmart.com/search?q=${encodeURIComponent(searchItem + " fresh each")}&sort=price_low`;
+  console.log("[Status] Hunting Walmart (Fuzzy Match)...");
+  const url = `https://www.walmart.com/search?q=${encodeURIComponent(searchItem + " fresh")}&sort=price_low`;
   const browser = await getBrowser('chromium');
   try {
     const context = await browser.newContext(mobileProfile);
     await context.addCookies([{ name: 'vtc', value: STORES.WALMART.id, domain: '.walmart.com', path: '/' }]);
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
-    
     const cards = page.locator('[data-automation-id="product-title"]');
-    for (let i = 0; i < Math.min(await cards.count(), 3); i++) {
+    for (let i = 0; i < Math.min(await cards.count(), 5); i++) {
         const name = await cards.nth(i).innerText();
-        if (name.toLowerCase().includes(searchItem)) {
+        const n = name.toLowerCase();
+        if (n.includes(searchItem) && !n.includes('cereal')) {
             const priceText = await page.locator('[data-automation-id="product-price"]').nth(i).innerText();
             const price = parsePrice(priceText.split('\n')[0]);
             if (price > 0) return { name, price };
@@ -82,18 +77,15 @@ async function runEconomap() {
   const results = [];
   if (walmart.price > 0) results.push({ store: 'Walmart', name: walmart.name, price: walmart.price });
   if (sams.price > 0) results.push({ store: "Sam's Club", name: sams.name, price: sams.price });
-  
   const report = results.map(res => {
     const isBulk = res.store === "Sam's Club";
-    const multiplier = searchItem.includes('banana') ? (isBulk ? 1 : 7.5) : 1;
+    const multiplier = searchItem.includes('banana') ? (isBulk ? 1 : 7) : 1;
     const total = res.price * (isBulk ? 1 : multiplier);
     return { Store: res.store, Product: res.name.substring(0, 30), Unit: `$${res.price.toFixed(2)}`, Bulk: `$${total.toFixed(2)}`, _raw: total };
   }).sort((a, b) => a._raw - b._raw);
-  
   console.table(report.map(({_raw, ...c}) => c));
   if (isCloud && report.length > 0) {
     await supabase.from('price_history').insert(report.map(r => ({ item_name: searchItem, store_name: r.Store, unit_price: parseFloat(r.Unit.replace('$', '')), bulk_matched_price: parseFloat(r.Bulk.replace('$', '')) })));
   }
 }
-
 runEconomap().then(() => console.log('[Complete]'));
