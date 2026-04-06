@@ -34,59 +34,57 @@ async function getBrowser(): Promise<Browser> {
   });
 }
 
-async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
-  console.log("[Status] Sequentially Hunting Sam's Club...");
-  const browser = await getBrowser();
-  try {
-    const context = await browser.newContext({ userAgent: UA });
-    const page = await context.newPage();
-    await page.goto(`https://www.samsclub.com/s/${encodeURIComponent(searchItem + " produce")}?clubId=${STORES.SAMS.id}`, { waitUntil: 'networkidle' });
-    await page.mouse.wheel(0, 1000); 
-    const priceSelector = '[data-automation-id="product-price"], .sc-pc-price-full';
-    await page.waitForSelector(priceSelector, { state: 'visible', timeout: 20000 });
-    const card = page.locator('[data-automation-id="product-card"]').first();
-    const name = await card.locator('[data-automation-id="product-title"]').innerText();
-    if (name.toLowerCase().includes('dried') || name.toLowerCase().includes('smoothie')) return { name: "Filtered", price: 0 };
-    const price = parsePrice(await card.locator(priceSelector).innerText());
-    return { name, price };
-  } catch { return { name: "Not Found", price: 0 }; } finally { await browser.close(); }
-}
-
-async function scrapeTarget(): Promise<{ name: string; price: number }> {
-  console.log("[Status] Sequentially Hunting Target...");
-  const browser = await getBrowser();
-  try {
-    const context = await browser.newContext({ userAgent: UA });
-    const page = await context.newPage();
-    await page.goto(`https://www.target.com/s?searchTerm=${encodeURIComponent(searchItem + " produce")}`);
-    const priceSelector = '[data-test="current-price"], [data-test="product-price"]';
-    await page.waitForSelector(priceSelector, { state: 'visible', timeout: 20000 });
-    const name = await page.locator('a[data-test="product-title"]').first().innerText();
-    const price = parsePrice(await page.locator(priceSelector).first().innerText());
-    return { name, price };
-  } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
-}
-
 async function scrapeWalmart(): Promise<{ name: string; price: number }> {
-  console.log("[Status] Sequentially Hunting Walmart...");
+  console.log("[Status] Pouncing on Walmart...");
   const browser = await getBrowser();
   try {
     const context = await browser.newContext({ userAgent: UA });
     await context.addCookies([{ name: 'vtc', value: STORES.WALMART.id, domain: '.walmart.com', path: '/' }]);
     const page = await context.newPage();
-    await page.goto(`https://www.walmart.com/search?q=${encodeURIComponent(searchItem + " produce")}&sort=price_low`);
-    await page.waitForSelector('[data-automation-id="product-price"]', { timeout: 20000 });
-    const card = page.locator('[data-automation-id="product-card"]').first();
-    const name = await card.locator('[data-automation-id="product-title"]').innerText();
-    const price = parsePrice(await card.locator('[data-automation-id="product-price"]').innerText());
+    // Direct search with "produce" department filter
+    await page.goto(`https://www.walmart.com/search?q=${encodeURIComponent(searchItem)}+produce&sort=price_low`, { waitUntil: 'domcontentloaded' });
+    const priceSelector = '[data-automation-id="product-price"], .f2';
+    await page.waitForSelector(priceSelector, { timeout: 15000 });
+    const name = await page.locator('[data-automation-id="product-title"]').first().innerText();
+    const price = parsePrice(await page.locator(priceSelector).first().innerText());
     return { name, price };
-  } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
+  } catch { return { name: "Not Found", price: 0 }; } finally { await browser.close(); }
+}
+
+async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
+  console.log("[Status] Pouncing on Sam's Club...");
+  const browser = await getBrowser();
+  try {
+    const context = await browser.newContext({ userAgent: UA });
+    const page = await context.newPage();
+    await page.goto(`https://www.samsclub.com/s/${encodeURIComponent(searchItem)}+produce?clubId=${STORES.SAMS.id}`, { waitUntil: 'networkidle' });
+    await page.mouse.wheel(0, 1000); 
+    const priceSelector = '[data-automation-id="product-price"], .sc-pc-price-full';
+    await page.waitForSelector(priceSelector, { state: 'visible', timeout: 15000 });
+    const name = await page.locator('[data-automation-id="product-title"]').first().innerText();
+    const price = parsePrice(await page.locator(priceSelector).first().innerText());
+    return { name, price };
+  } catch { return { name: "Not Found", price: 0 }; } finally { await browser.close(); }
+}
+
+async function scrapeTarget(): Promise<{ name: string; price: number }> {
+  console.log("[Status] Pouncing on Target...");
+  const browser = await getBrowser();
+  try {
+    const context = await browser.newContext({ userAgent: UA });
+    const page = await context.newPage();
+    // Target Direct Search
+    await page.goto(`https://www.target.com/s?searchTerm=${encodeURIComponent(searchItem)}+produce`);
+    const priceSelector = '[data-test="current-price"], [data-test="product-price"]';
+    await page.waitForSelector(priceSelector, { state: 'visible', timeout: 15000 });
+    const name = await page.locator('a[data-test="product-title"]').first().innerText();
+    const price = parsePrice(await page.locator(priceSelector).first().innerText());
+    return { name, price };
+  } catch { return { name: "Not Found", price: 0 }; } finally { await browser.close(); }
 }
 
 async function runEconomap() {
   const finalResults = [];
-  
-  // SEQUENTIAL EXECUTION: One store at a time to prevent CPU contention
   console.log("--- EconoMap Hunter: Starting Sequential Hunt ---");
   
   const walmart = await scrapeWalmart();
