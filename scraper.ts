@@ -12,28 +12,27 @@ const supabase = createClient(
 const searchItem = (process.env.SEARCH_ITEM || 'banana').toLowerCase();
 const isCloud = process.env.GITHUB_ACTIONS === 'true';
 
-// 2026 Tactics: Randomized Modern Fingerprints
+// 2026 Tactic: Randomized shopper fingerprints
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36'
 ];
 const UA = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 
-const STORES = { TARGET: { zip: '33912' }, WALMART: { id: '4770' }, SAMS: { id: '8130' } };
+const STORES = { 
+  TARGET: { zip: '33912', name: 'Fort Myers' }, 
+  WALMART: { id: '4770', zip: '33966' }, 
+  SAMS: { id: '8130' } 
+};
 
-/**
- * REFINED PARSER: NO HARDCODED FALLBACKS.
- * If the data is bad, it returns 0 so the test fails properly.
- */
 function parsePrice(raw: string): number {
   const clean = raw.toLowerCase().trim();
   if (clean.includes('¢')) {
     const match = clean.match(/(\d+(\.\d+)?)/);
     return match ? parseFloat(match[1]) / 100 : 0;
   }
-  const dollarMatch = clean.match(/\$(\d+\.\d{2})/);
-  if (dollarMatch) return parseFloat(dollarMatch[1]);
-  
+  const match = clean.match(/\$?(\d+\.\d{2})/);
+  if (match) return parseFloat(match[1]);
   const fallback = parseFloat(clean.replace(/[^\d.]/g, ''));
   return (fallback > 0 && fallback < 100) ? fallback : 0;
 }
@@ -41,25 +40,46 @@ function parsePrice(raw: string): number {
 async function getBrowser(): Promise<Browser> {
   return await chromium.launch({ 
     headless: isCloud,
-    args: ['--disable-blink-features=AutomationControlled', '--no-sandbox'] 
+    args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-setuid-sandbox'] 
   });
 }
 
 async function scrapeSamsClub(): Promise<{ name: string; price: number }> {
-  console.log("[Status] Hunting Sam's Club...");
+  console.log("[Status] Priming Sam's Club Shopper Session...");
   const browser = await getBrowser();
   try {
     const context = await browser.newContext({ userAgent: UA });
     const page = await context.newPage();
-    // Sam's Club 2026 Tactic: Direct Club-ID injection via URL
-    await page.goto(`https://www.samsclub.com/s/${encodeURIComponent(searchItem)}?clubId=${STORES.SAMS.id}`, { waitUntil: 'networkidle' });
-    await page.mouse.wheel(0, 800); // Wake up lazy loaders
-    const priceSelector = '[data-automation-id="product-price"], .sc-pc-price-full';
-    await page.waitForSelector(priceSelector, { state: 'visible', timeout: 20000 });
+    // Tactic: Inject Club ID directly into the search session
+    await page.goto(`https://www.samsclub.com/s/${encodeURIComponent(searchItem)}?clubId=${STORES.SAMS.id}`, { waitUntil: 'networkidle', timeout: 60000 });
+    await page.mouse.wheel(0, 1000); 
+    const priceSelector = '[data-automation-id="product-price"], .sc-pc-price-full, .sc-pc-price-unit';
+    await page.waitForSelector(priceSelector, { state: 'visible', timeout: 25000 });
     const name = await page.locator('[data-automation-id="product-title"]').first().innerText();
     const price = parsePrice(await page.locator(priceSelector).first().innerText());
     return { name, price };
   } catch { return { name: "Not Found", price: 0 }; } finally { await browser.close(); }
+}
+
+async function scrapeTarget(): Promise<{ name: string; price: number }> {
+  console.log("[Status] Initializing Target Store Locator Sync...");
+  const browser = await getBrowser();
+  try {
+    const context = await browser.newContext({ userAgent: UA });
+    const page = await context.newPage();
+    // Target requires a "Session Lock" on a specific store to show pricing
+    await page.goto(`https://www.target.com/store-locator/find-stores/${STORES.TARGET.zip}`, { waitUntil: 'networkidle' });
+    const shopButton = page.locator('button:has-text("shop this store"), button:has-text("set as my store")').first();
+    if (await shopButton.isVisible()) await shopButton.click();
+    await page.waitForTimeout(2000);
+    
+    await page.goto(`https://www.target.com/s?searchTerm=${encodeURIComponent(searchItem + " fresh")}`, { waitUntil: 'networkidle' });
+    const priceSelector = '[data-test="current-price"], [data-test="product-price"], .lfiabe';
+    await page.waitForSelector(priceSelector, { state: 'visible', timeout: 25000 });
+    const name = await page.locator('a[data-test="product-title"], [data-test="product-title"]').first().innerText();
+    const price = parsePrice(await page.locator(priceSelector).first().innerText());
+    return { name, price };
+  } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
 }
 
 async function scrapeWalmart(): Promise<{ name: string; price: number }> {
@@ -67,30 +87,13 @@ async function scrapeWalmart(): Promise<{ name: string; price: number }> {
   const browser = await getBrowser();
   try {
     const context = await browser.newContext({ userAgent: UA });
+    // Inject Walmart Location Cookies to force local inventory
     await context.addCookies([{ name: 'vtc', value: STORES.WALMART.id, domain: '.walmart.com', path: '/' }]);
     const page = await context.newPage();
     await page.goto(`https://www.walmart.com/search?q=${encodeURIComponent(searchItem + " fresh")}&sort=price_low`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-automation-id="product-price"]', { timeout: 15000 });
+    await page.waitForSelector('[data-automation-id="product-price"]', { timeout: 20000 });
     const name = await page.locator('[data-automation-id="product-title"]').first().innerText();
     const price = parsePrice(await page.locator('[data-automation-id="product-price"]').first().innerText());
-    return { name, price };
-  } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
-}
-
-async function scrapeTarget(): Promise<{ name: string; price: number }> {
-  console.log("[Status] Hunting Target...");
-  const browser = await getBrowser();
-  try {
-    const context = await browser.newContext({ userAgent: UA });
-    const page = await context.newPage();
-    // Target Tactic: Set store via locator first
-    await page.goto(`https://www.target.com/store-locator/find-stores/${STORES.TARGET.zip}`);
-    await page.locator('button:has-text("shop this store")').first().click();
-    await page.waitForTimeout(1500);
-    await page.goto(`https://www.target.com/s?searchTerm=${encodeURIComponent(searchItem + " fresh produce")}`);
-    await page.waitForSelector('[data-test="current-price"]', { state: 'visible', timeout: 15000 });
-    const name = await page.locator('a[data-test="product-title"]').first().innerText();
-    const price = parsePrice(await page.locator('[data-test="current-price"]').first().innerText());
     return { name, price };
   } catch { return { name: 'Not Found', price: 0 }; } finally { await browser.close(); }
 }
@@ -110,9 +113,9 @@ async function runEconomap() {
   
   console.table(report.map(({_raw, ...c}) => c));
   if (isCloud && report.length > 0) {
-    await supabase.from('price_history').insert(report.map(r => ({ 
+    await supabase.from('price_history').upsert(report.map(r => ({ 
       item_name: searchItem, store_name: r.Store, unit_price: parseFloat(r.Unit.replace('$', '')), bulk_matched_price: parseFloat(r.Bulk.replace('$', '')) 
-    })));
+    })), { onConflict: 'item_name,store_name' });
   }
 }
 runEconomap().then(() => console.log('[Complete]'));
