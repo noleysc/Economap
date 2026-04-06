@@ -1,25 +1,29 @@
-name: Automated Scraper
-
+name: Run Economap Scraper
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: 
   schedule:
-    - cron: '0 9,21 * * *'
-  workflow_dispatch:
+    - cron: '0 12 * * *'
+  push:
+    branches: [ main ]
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
-      - run: npm install
-      - run: npx playwright install --with-deps
-      - run: npm run scrape
+      - name: Install Dependencies
+        run: npm install
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium firefox
+      - name: Run Scraper in Virtual Monitor
+        run: xvfb-run npm run scrape
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GITHUB_ACTIONS: true
