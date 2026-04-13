@@ -2,9 +2,11 @@
 [![Watch the demo](https://img.youtube.com/vi/G9PU7EiYc_I/0.jpg)](https://youtu.be/G9PU7EiYc_I)
 
 Overview
+
 Economap is a high-precision web scraping utility designed to track and compare fresh produce and grocery pricing across major retailers in the Fort Myers area. The system normalizes "Unit Pricing" (Target/Walmart) against "Bulk Pricing" (Sam's Club) to provide a true cost-per-volume analysis.
 
 Technical Stack
+IN ORDER TO CONTRIBUTE USE:
 Runtime: Node.js v22 (MacBook Air Optimized)
 
 Scraping Engine: Playwright-Extra with Stealth Plugin
