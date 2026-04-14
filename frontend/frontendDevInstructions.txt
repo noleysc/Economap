@@ -147,5 +147,3 @@ Styling: Tailwind CSS (No CSS-in-JS "furballs").
 Data Fetching: TanStack Query (Caching is built-in).
 UI Primitives: Shadcn/UI (Built on Radix UI for accessibility).
 Icons: Lucide-React (Consistent and lightweight).
-
-
