@@ -13,6 +13,29 @@ import { GasStation, Store } from '@/types';
 
 const PriceMap = dynamic(() => import('@/features/map/components/PriceMap').then(mod => mod.PriceMap), { ssr: false });
 
+const legendMarker = (fill: string, stroke: string, innerFill: string) =>
+  `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="34" viewBox="0 0 24 34">
+      <path fill="${fill}" stroke="${stroke}" stroke-width="1.5" d="M12 1C6.48 1 2 5.48 2 11c0 7.33 10 21 10 21s10-13.67 10-21C22 5.48 17.52 1 12 1z"/>
+      <circle cx="12" cy="11" r="3.5" fill="${innerFill}"/>
+    </svg>
+  `)}`;
+
+const legendItems = [
+  {
+    label: 'Your location',
+    icon: legendMarker('#16a34a', '#166534', '#eafff0'),
+  },
+  {
+    label: 'Gas station',
+    icon: legendMarker('#dc2626', '#7f1d1d', '#fff1f1'),
+  },
+  {
+    label: 'Grocery store',
+    icon: legendMarker('#2563eb', '#1d4ed8', '#eff6ff'),
+  },
+];
+
 interface StoreWithCartBalance extends Store {
   cartBalance: number | null;
 }
@@ -161,6 +184,17 @@ export default function Home() {
                 waypoints={dynamicWaypoints}
                 gasStations={gasStationsToDisplay}
               />
+            </div>
+
+            <div className="mb-4 flex w-full max-w-xl justify-center px-2">
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 rounded-full border border-white/70 bg-white/90 px-5 py-3 shadow-lg backdrop-blur">
+                {legendItems.map(item => (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <Image src={item.icon} alt="" aria-hidden="true" width={20} height={28} className="h-7 w-5" />
+                    <span className="text-sm font-medium text-slate-700">{item.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {selectedProducts.length === 0 && (
