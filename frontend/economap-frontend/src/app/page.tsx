@@ -117,12 +117,8 @@ export default function Home() {
       return [];
     }
 
-    if (!tripPlan?.selectedGasStationId) {
-      return filteredGasStations;
-    }
-
-    return filteredGasStations.filter(station => station.id === tripPlan.selectedGasStationId);
-  }, [filteredGasStations, getGas, tripPlan]);
+    return filteredGasStations;
+  }, [filteredGasStations, getGas]);
 
   useEffect(() => {
     if (!navigator.geolocation) {
