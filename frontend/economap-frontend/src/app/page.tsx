@@ -6,8 +6,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 import { buildTripPlan } from '@/features/map/components/routing-engine';
-import { generateFakeGasStations, generateFakeProductPrices, generateFakeStores } from '@/lib/fakeData';
-import { haversineDistance } from '@/lib/routingUtils';
+import { getGasStationsNearLocation, getProductPricesForStores, getStoresNearLocation } from '@/lib/dataSource';
 import { useCartStore } from '@/store/useCartStore';
 import { useLocationStore } from '@/store/useLocationStore';
 import { CartItem, GasStation, Product, Store } from '@/types';
@@ -45,9 +44,6 @@ const METERS_PER_MILE = 1_609.34;
 const MIN_SEARCH_RADIUS_MILES = 2;
 const MAX_SEARCH_RADIUS_MILES = 25;
 const DEFAULT_SEARCH_RADIUS_MILES = 7;
-const MAX_SEARCH_RADIUS_METERS = MAX_SEARCH_RADIUS_MILES * METERS_PER_MILE;
-const TOTAL_GROCERY_STORE_COUNT = 56;
-const TOTAL_GAS_STATION_COUNT = 30;
 
 export default function Home() {
   const { items: cartItems, getGas } = useCartStore();
@@ -63,39 +59,44 @@ export default function Home() {
     () => searchRadiusMiles * METERS_PER_MILE,
     [searchRadiusMiles]
   );
-  const allFakeStores = useMemo<Store[]>(
-    () => (latitude && longitude ? generateFakeStores(TOTAL_GROCERY_STORE_COUNT, latitude, longitude, MAX_SEARCH_RADIUS_METERS) : []),
-    [latitude, longitude]
+  const storesInRadius = useMemo<Store[]>(
+    () => (
+      latitude !== null && longitude !== null
+        ? getStoresNearLocation({
+            latitude,
+            longitude,
+            radiusMeters: searchRadiusMeters,
+          })
+        : []
+    ),
+    [latitude, longitude, searchRadiusMeters]
   );
-  const allFakeGasStations = useMemo<GasStation[]>(
-    () => (latitude && longitude ? generateFakeGasStations(TOTAL_GAS_STATION_COUNT, latitude, longitude, MAX_SEARCH_RADIUS_METERS) : []),
-    [latitude, longitude]
+  const gasStationsInRadius = useMemo<GasStation[]>(
+    () => (
+      latitude !== null && longitude !== null
+        ? getGasStationsNearLocation({
+            latitude,
+            longitude,
+            radiusMeters: searchRadiusMeters,
+          })
+        : []
+    ),
+    [latitude, longitude, searchRadiusMeters]
   );
   const userLocation = useMemo(
-    () => (latitude && longitude ? { lat: latitude, lng: longitude } : null),
+    () => (latitude !== null && longitude !== null ? { lat: latitude, lng: longitude } : null),
     [latitude, longitude]
   );
-  const storesInRadius = useMemo(() => {
-    if (!userLocation) {
-      return [];
-    }
-
-    return allFakeStores.filter((store) =>
-      haversineDistance(userLocation.lat, userLocation.lng, store.coordinates.lat, store.coordinates.lng) <= searchRadiusMeters
-    );
-  }, [allFakeStores, searchRadiusMeters, userLocation]);
-  const gasStationsInRadius = useMemo(() => {
-    if (!userLocation) {
-      return [];
-    }
-
-    return allFakeGasStations.filter((station) =>
-      haversineDistance(userLocation.lat, userLocation.lng, station.coordinates.lat, station.coordinates.lng) <= searchRadiusMeters
-    );
-  }, [allFakeGasStations, searchRadiusMeters, userLocation]);
   const productPrices = useMemo(
-    () => (selectedProducts.length > 0 ? generateFakeProductPrices(allFakeStores, selectedProducts) : {}),
-    [allFakeStores, selectedProducts]
+    () => (
+      selectedProducts.length > 0
+        ? getProductPricesForStores({
+            storeIds: storesInRadius.map((store) => store.id),
+            products: selectedProducts,
+          })
+        : {}
+    ),
+    [selectedProducts, storesInRadius]
   );
 
   const storesWithBalances: StoreWithCartBalance[] = useMemo(() => {

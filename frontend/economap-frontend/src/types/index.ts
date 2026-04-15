@@ -32,6 +32,20 @@ export interface GasStation {
   pricePerGallon: number;
 }
 
+export interface NearbySearchParams {
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  limit?: number;
+}
+
+export interface ProductPricingQuery {
+  storeIds: string[];
+  products: Product[];
+}
+
+export type ProductPriceLookup = Record<string, Record<string, number>>;
+
 export interface RouteWaypoint {
   lat: number;
   lng: number;

@@ -1,5 +1,5 @@
 
-import { Store, Product, GasStation } from '@/types';
+import { GasStation, Product, ProductPriceLookup, Store } from '@/types';
 
 const EAST_WEST_STREETS = [
   'Market St',
@@ -121,15 +121,17 @@ export const generateFakeStores = (count: number, lat: number, lng: number, radi
 };
 
 // Function to generate fake product prices for stores
-export const generateFakeProductPrices = (stores: Store[], products: Product[]) => {
-  const prices: { [storeId: string]: { [productId: string]: number } } = {};
-  stores.forEach(store => {
-    prices[store.id] = {};
+export const generateFakeProductPrices = (storeIds: string[], products: Product[]): ProductPriceLookup => {
+  const prices: ProductPriceLookup = {};
+
+  storeIds.forEach((storeId) => {
+    prices[storeId] = {};
     products.forEach(product => {
-      const seededValue = hashString(`${store.id}:${product.id}`) / 0xffffffff;
-      prices[store.id][product.id] = parseFloat((1 + seededValue * 9).toFixed(2));
+      const seededValue = hashString(`${storeId}:${product.id}`) / 0xffffffff;
+      prices[storeId][product.id] = parseFloat((1 + seededValue * 9).toFixed(2));
     });
   });
+
   return prices;
 };
 
