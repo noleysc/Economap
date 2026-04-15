@@ -69,6 +69,7 @@ export default function Home() {
   const { items: cartItems, getGas } = useCartStore();
   const { latitude, longitude, setLocation } = useLocationStore();
 
+  const [locationErrorMessage, setLocationErrorMessage] = useState<string | null>(null);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [searchRadiusMiles, setSearchRadiusMiles] = useState(DEFAULT_SEARCH_RADIUS_MILES);
   const [isBestStoresExpanded, setIsBestStoresExpanded] = useState(true);
@@ -281,10 +282,16 @@ export default function Home() {
 
     navigator.geolocation.getCurrentPosition(
       position => {
+        setLocationErrorMessage(null);
         setLocation(position.coords.latitude, position.coords.longitude);
       },
       error => {
-        console.error('Geolocation error:', error);
+        const fallbackMessage =
+          error.code === error.PERMISSION_DENIED
+            ? 'Location access was denied. Enable it in your browser to start the map from your current position.'
+            : 'We could not determine your location. Check your browser settings and try again.';
+
+        setLocationErrorMessage(fallbackMessage);
       }
     );
   }, [setLocation]);
@@ -314,6 +321,7 @@ export default function Home() {
                 onStoreClick={handleStoreClick}
                 waypoints={dynamicWaypoints}
                 gasStations={gasStationsToDisplay}
+                locationErrorMessage={locationErrorMessage}
               />
             </div>
 
@@ -429,10 +437,11 @@ export default function Home() {
               </div>
             )}
 
-            <Link href="/products" className="w-full max-w-sm">
-              <button className="mt-6 w-full rounded-full bg-secondary px-6 py-3 text-sm font-semibold text-secondary-foreground shadow-[0_12px_30px_-12px_rgba(37,99,235,0.8)] ring-1 ring-blue-200/70 transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:opacity-95 md:text-base">
-                Select Products
-              </button>
+            <Link
+              href="/products"
+              className="mt-6 w-full max-w-sm rounded-full bg-secondary px-6 py-3 text-center text-sm font-semibold text-secondary-foreground shadow-[0_12px_30px_-12px_rgba(37,99,235,0.8)] ring-1 ring-blue-200/70 transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:opacity-95 md:text-base"
+            >
+              Select Products
             </Link>
 
             {selectedProducts.length > 0 && storesToDisplay.length > 0 && (

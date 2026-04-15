@@ -14,7 +14,8 @@ interface PriceMapProps {
   stores: Store[];
   onStoreClick: (id: string) => void;
   waypoints?: { lat: number; lng: number }[];
-  gasStations?: GasStation[]; // Add gasStations prop
+  gasStations?: GasStation[];
+  locationErrorMessage?: string | null;
 }
 
 // Custom icon for gas stations
@@ -36,7 +37,7 @@ const gasStationIcon = new L.Icon({
   shadowAnchor: [13, 41],
 });
 
-export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: PriceMapProps) => {
+export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations, locationErrorMessage }: PriceMapProps) => {
   const { latitude, longitude } = useLocationStore();
 
 
@@ -54,8 +55,12 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
     return (
       <div className="flex h-full w-full items-center justify-center bg-transparent px-6 text-center">
         <div>
-          <p className="text-lg font-semibold text-slate-900">Locating your current position</p>
-          <p className="mt-2 text-sm text-slate-500">Allow location access so the map can start at where you are now.</p>
+          <p className="text-lg font-semibold text-slate-900">
+            {locationErrorMessage ? 'Location unavailable' : 'Locating your current position'}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            {locationErrorMessage ?? 'Allow location access so the map can start at where you are now.'}
+          </p>
         </div>
       </div>
     );
@@ -72,7 +77,7 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
           attribution='&copy; <a href="https://www.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {latitude && longitude && (
+        {latitude !== null && longitude !== null && (
           <Marker position={[latitude, longitude]} icon={userLocationIcon}>
             <Popup>You are here</Popup>
           </Marker>

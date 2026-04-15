@@ -28,10 +28,11 @@ export default function ProductsPage() {
                 className="h-5 w-5 rounded border-slate-300 text-primary focus:ring-primary"
               />
             </div>
-            <Link href="/" className="mt-4 w-full max-w-md">
-              <button className="w-full rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-[0_12px_30px_-12px_rgba(13,148,136,0.85)] ring-1 ring-emerald-200/70 transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:opacity-95">
-                Plan Trip
-              </button>
+            <Link
+              href="/"
+              className="mt-4 w-full max-w-md rounded-full bg-primary px-6 py-3 text-center text-base font-semibold text-primary-foreground shadow-[0_12px_30px_-12px_rgba(13,148,136,0.85)] ring-1 ring-emerald-200/70 transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:opacity-95"
+            >
+              Plan Trip
             </Link>
           </div>
         </div>

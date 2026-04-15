@@ -88,8 +88,7 @@ export const getRouteMetrics = async (
         });
       });
     });
-  } catch (error) {
-    console.error('Error routing:', error);
+  } catch {
     return getFallbackRouteMetrics(origin, destination);
   }
 };
