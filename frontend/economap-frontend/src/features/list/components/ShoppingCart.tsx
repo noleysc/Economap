@@ -1,7 +1,7 @@
 'use client';
 
 import { useCartStore } from '@/store/useCartStore';
-import { Product } from '@/types';
+
 import React from 'react';
 
 export const ShoppingCart = () => {

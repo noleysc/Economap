@@ -1,14 +1,13 @@
 'use client';
 
-import { Store, GasStation, RouteSummary } from '@/types';
+import { Store, GasStation } from '@/types';
 import { useLocationStore } from '@/store/useLocationStore';
-import { useMemo, useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
+import { useEffect, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import L from 'leaflet'; // Import Leaflet for custom icon
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import RoutingMachine from './routing-machine';
+import RoutingMachine from "./routing-machine";
 import userLocationIcon from './user-location-marker';
 
 interface PriceMapProps {
@@ -19,21 +18,32 @@ interface PriceMapProps {
 }
 
 // Custom icon for gas stations
+const gasStationIconSvg = encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="30" height="42" viewBox="0 0 30 42">
+    <path fill="#d62828" stroke="#7f1d1d" stroke-width="2" d="M15 1C7.82 1 2 6.82 2 14c0 9.58 13 27 13 27s13-17.42 13-27C28 6.82 22.18 1 15 1z"/>
+    <circle cx="15" cy="14" r="5.5" fill="#fff2f2"/>
+  </svg>
+`);
+
 const gasStationIcon = new L.Icon({
-  iconUrl: '/images/leaflet/gas-pump.png', // You'll need to add a gas-pump.png to public/images/leaflet
-  iconRetinaUrl: '/images/leaflet/gas-pump.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
+  iconUrl: `data:image/svg+xml;charset=UTF-8,${gasStationIconSvg}`,
+  iconRetinaUrl: `data:image/svg+xml;charset=UTF-8,${gasStationIconSvg}`,
+  iconSize: [30, 42],
+  iconAnchor: [15, 42],
   popupAnchor: [1, -34],
   shadowUrl: '/images/leaflet/marker-shadow.png',
-  shadowSize: [41, 41]
+  shadowSize: [41, 41],
+  shadowAnchor: [13, 41],
 });
 
 export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: PriceMapProps) => {
   const { latitude, longitude } = useLocationStore();
+  const [itineraryCollapsed, setItineraryCollapsed] = useState(false);
+
 
   useEffect(() => {
-    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    // This is a known workaround for a leaflet issue where the default icon path is not resolved correctly.
+    delete (L.Icon.Default.prototype as L.Icon.Default & { _getIconUrl?: string })._getIconUrl;
     L.Icon.Default.mergeOptions({
       iconRetinaUrl: '/images/leaflet/marker-icon-2x.png',
       iconUrl: '/images/leaflet/marker-icon.png',
@@ -49,15 +59,7 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
     ? [stores[0].coordinates.lat, stores[0].coordinates.lng]
     : defaultCenter;
 
-  if (!latitude || !longitude) {
-    return (
-      <div className="h-[500px] w-full rounded-lg relative z-0 border border-border shadow-lg overflow-hidden flex items-center justify-center">
-        <p>Loading map...</p>
-      </div>
-    );
-  }
 
-  const [itineraryCollapsed, setItineraryCollapsed] = useState(false);
 
   return (
     <div className={`h-[500px] w-full rounded-lg relative z-0 border border-border shadow-lg overflow-hidden ${itineraryCollapsed ? 'itinerary-collapsed' : ''}`}>
@@ -74,9 +76,11 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
           attribution='&copy; <a href="https://www.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <Marker position={[latitude, longitude]} icon={userLocationIcon}>
-          <Popup>You are here</Popup>
-        </Marker>
+        {latitude && longitude && (
+          <Marker position={[latitude, longitude]} icon={userLocationIcon}>
+            <Popup>You are here</Popup>
+          </Marker>
+        )}
         {stores.map((store) => (
           <Marker 
             key={store.id} 
@@ -119,7 +123,7 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
         ))}
 
         {waypoints && waypoints.length >= 2 && (
-          <RoutingMachine key={waypoints.map(p => p.lat).join('_')} waypoints={waypoints.map(p => L.latLng(p.lat, p.lng))} />
+          <RoutingMachine key={waypoints.map(p => `${p.lat}-${p.lng}`).join('_')} waypoints={waypoints.map(p => L.latLng(p.lat, p.lng))} />
         )}
       </MapContainer>
     </div>

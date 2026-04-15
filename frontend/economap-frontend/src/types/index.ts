@@ -27,6 +27,28 @@ export interface GasStation {
   pricePerGallon: number;
 }
 
+export interface RouteWaypoint {
+  lat: number;
+  lng: number;
+}
+
+export interface RouteStop {
+  id: string;
+  name: string;
+  address: string;
+  type: 'user' | 'grocery' | 'gas';
+  coordinates: RouteWaypoint;
+  pricePerGallon?: number;
+}
+
+export interface TripPlan {
+  orderedStops: RouteStop[];
+  totalDistanceMeters: number;
+  estimatedScore: number;
+  selectedStoreId: string;
+  selectedGasStationId?: string;
+}
+
 export interface PriceRecord {
   productId: string;
   storeId: string;

@@ -3,12 +3,16 @@ import userLocationIcon from "./user-location-marker";
 import { createControlComponent } from "@react-leaflet/core";
 import "leaflet-routing-machine";
 
-const createRoutineMachineLayer = (props: any) => {
+interface RoutingMachineProps extends L.ControlOptions {
+  waypoints: L.LatLng[];
+}
+
+const createRoutineMachineLayer = (props: RoutingMachineProps) => {
   const instance = L.Routing.control({
     plan: L.Routing.plan(props.waypoints, {
       addWaypoints: false,
       draggableWaypoints: true,
-      createMarker: function (i: number, waypoint: any, n: number) {
+      createMarker: function (i: number, waypoint: L.Routing.Waypoint) {
         if (i === 0) {
           return L.marker(waypoint.latLng, {
             icon: userLocationIcon
@@ -36,6 +40,8 @@ const createRoutineMachineLayer = (props: any) => {
   return instance;
 };
 
-const RoutingMachine = createControlComponent(createRoutineMachineLayer);
+const RoutingMachine = createControlComponent<L.Routing.Control, RoutingMachineProps>(
+  createRoutineMachineLayer
+);
 
 export default RoutingMachine;

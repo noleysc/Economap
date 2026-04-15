@@ -1,5 +1,5 @@
 
-import { Store, Product } from '@/types';
+import { Store, Product, GasStation } from '@/types';
 
 // Function to generate a random coordinate within a radius
 const generateRandomCoordinate = (lat: number, lng: number, radius: number) => {
@@ -15,7 +15,7 @@ const generateRandomCoordinate = (lat: number, lng: number, radius: number) => {
   const x = w * Math.cos(t);
   const y = w * Math.sin(t);
 
-  const newY = y / Math.cos(y0);
+  const newY = y / Math.cos(y0 * Math.PI / 180);
 
   return {
     lat: y0 + newY,
@@ -26,12 +26,21 @@ const generateRandomCoordinate = (lat: number, lng: number, radius: number) => {
 // Function to generate a list of fake stores
 export const generateFakeStores = (count: number, lat: number, lng: number, radius: number): Store[] => {
   const stores: Store[] = [];
+  const storeNames = [
+    "Budget Basket",
+    "Market Square",
+    "Fresh Corner",
+    "Family Foods",
+    "Neighborhood Grocer",
+    "Sunrise Market",
+  ];
+
   for (let i = 0; i < count; i++) {
     const coordinates = generateRandomCoordinate(lat, lng, radius);
     stores.push({
       id: `store-${i}`,
-      name: `Fake Store ${i + 1}`,
-      address: `${100 + i} Fake St, Fake City`,
+      name: `${storeNames[i % storeNames.length]} ${i + 1}`,
+      address: `${100 + i} Market St, Los Angeles`,
       coordinates,
     });
   }
@@ -49,4 +58,23 @@ export const generateFakeProductPrices = (stores: Store[], products: Product[]) 
     });
   });
   return prices;
+};
+
+// Function to generate fake gas stations
+export const generateFakeGasStations = (count: number, lat: number, lng: number, radius: number): GasStation[] => {
+  const stations: GasStation[] = [];
+  const gasNames = ["Shell", "Exxon", "Chevron", "BP", "7-Eleven", "Costco Gas"];
+
+  for (let i = 0; i < count; i++) {
+    const coordinates = generateRandomCoordinate(lat, lng, radius);
+    stations.push({
+      id: `gas-${i}`,
+      name: `${gasNames[i % gasNames.length]} ${i + 1}`,
+      address: `${200 + i} Fuel Rd, Nearby`,
+      coordinates,
+      pricePerGallon: parseFloat((Math.random() * 1.5 + 3.5).toFixed(2)), // $3.50 to $5.00
+    });
+  }
+
+  return stations;
 };

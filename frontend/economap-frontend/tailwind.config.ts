@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config = {
-  darkMode: ["class"],
+  darkMode: "class",
   content: [
     "./pages/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
@@ -39,7 +39,7 @@ const config = {
         border: "#E0E0E0", // Lighter Gray for borders
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"], // Custom font
+        sans: ["Segoe UI", "Helvetica Neue", "Arial", "sans-serif"],
       },
     },
   },
