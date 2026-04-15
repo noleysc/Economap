@@ -64,7 +64,7 @@ export interface TripPlan {
   orderedStops: RouteStop[];
   totalDistanceMeters: number;
   estimatedScore: number;
-  selectedStoreId: string;
+  selectedStoreId?: string;
   selectedGasStationId?: string;
 }
 

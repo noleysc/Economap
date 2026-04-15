@@ -12,6 +12,7 @@ interface BuildTripPlanArgs {
 
 const DETOUR_DISTANCE_WEIGHT = 6;
 const GAS_PRICE_WEIGHT = 5;
+const DIRECT_DISTANCE_WEIGHT = 6;
 
 const getRouteDistance = (waypoints: { lat: number; lng: number }[]) => {
   if (waypoints.length < 2) {
@@ -36,7 +37,7 @@ export const buildTripPlan = ({
   gasStations,
   shouldGetGas,
 }: BuildTripPlanArgs): TripPlan | null => {
-  if (!userLocation || !selectedStore) {
+  if (!userLocation) {
     return null;
   }
 
@@ -47,6 +48,44 @@ export const buildTripPlan = ({
     type: 'user',
     coordinates: userLocation,
   };
+
+  if (!selectedStore) {
+    if (!shouldGetGas || gasStations.length === 0) {
+      return null;
+    }
+
+    let bestGasOnlyPlan: TripPlan | null = null;
+
+    for (const gasStation of gasStations) {
+      const gasStop: RouteStop = {
+        id: gasStation.id,
+        name: gasStation.name,
+        address: gasStation.address,
+        type: 'gas',
+        coordinates: gasStation.coordinates,
+        pricePerGallon: gasStation.pricePerGallon,
+      };
+      const totalDistanceMeters = getRouteDistance([
+        userLocation,
+        gasStation.coordinates,
+      ]);
+      const distanceMiles = totalDistanceMeters / 1609.34;
+      const estimatedScore =
+        distanceMiles * DIRECT_DISTANCE_WEIGHT +
+        gasStation.pricePerGallon * GAS_PRICE_WEIGHT;
+
+      if (!bestGasOnlyPlan || estimatedScore < bestGasOnlyPlan.estimatedScore) {
+        bestGasOnlyPlan = {
+          orderedStops: [userStop, gasStop],
+          totalDistanceMeters,
+          estimatedScore,
+          selectedGasStationId: gasStation.id,
+        };
+      }
+    }
+
+    return bestGasOnlyPlan;
+  }
 
   const groceryStop: RouteStop = {
     id: selectedStore.id,

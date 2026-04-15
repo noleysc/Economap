@@ -431,7 +431,7 @@ export default function Home() {
               </div>
             </div>
 
-            {selectedProducts.length === 0 && (
+            {selectedProducts.length === 0 && !getGas && (
               <div className="mt-4 w-full max-w-md rounded-2xl border border-white/70 bg-white/90 p-5 shadow-lg backdrop-blur animate-fade-in">
                 <p className="text-center text-base text-slate-700 md:text-lg">Add products to your cart to plan a trip.</p>
               </div>
