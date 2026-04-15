@@ -1,0 +1,151 @@
+'use client';
+
+import { haversineDistance } from '@/lib/routingUtils';
+import { GasStation, RouteStop, Store, TripPlan } from '@/types';
+
+interface BuildTripPlanArgs {
+  userLocation: { lat: number; lng: number } | null;
+  selectedStore: Store | null;
+  gasStations: GasStation[];
+  shouldGetGas: boolean;
+}
+
+const DETOUR_DISTANCE_WEIGHT = 6;
+const GAS_PRICE_WEIGHT = 5;
+const DIRECT_DISTANCE_WEIGHT = 6;
+
+const getRouteDistance = (waypoints: { lat: number; lng: number }[]) => {
+  if (waypoints.length < 2) {
+    return 0;
+  }
+
+  return waypoints.slice(1).reduce((totalDistance, waypoint, index) => {
+    const previousWaypoint = waypoints[index];
+
+    return totalDistance + haversineDistance(
+      previousWaypoint.lat,
+      previousWaypoint.lng,
+      waypoint.lat,
+      waypoint.lng
+    );
+  }, 0);
+};
+
+export const buildTripPlan = ({
+  userLocation,
+  selectedStore,
+  gasStations,
+  shouldGetGas,
+}: BuildTripPlanArgs): TripPlan | null => {
+  if (!userLocation) {
+    return null;
+  }
+
+  const userStop: RouteStop = {
+    id: 'user-location',
+    name: 'Your Location',
+    address: 'Current position',
+    type: 'user',
+    coordinates: userLocation,
+  };
+
+  if (!selectedStore) {
+    if (!shouldGetGas || gasStations.length === 0) {
+      return null;
+    }
+
+    let bestGasOnlyPlan: TripPlan | null = null;
+
+    for (const gasStation of gasStations) {
+      const gasStop: RouteStop = {
+        id: gasStation.id,
+        name: gasStation.name,
+        address: gasStation.address,
+        type: 'gas',
+        coordinates: gasStation.coordinates,
+        pricePerGallon: gasStation.pricePerGallon,
+      };
+      const totalDistanceMeters = getRouteDistance([
+        userLocation,
+        gasStation.coordinates,
+      ]);
+      const distanceMiles = totalDistanceMeters / 1609.34;
+      const estimatedScore =
+        distanceMiles * DIRECT_DISTANCE_WEIGHT +
+        gasStation.pricePerGallon * GAS_PRICE_WEIGHT;
+
+      if (!bestGasOnlyPlan || estimatedScore < bestGasOnlyPlan.estimatedScore) {
+        bestGasOnlyPlan = {
+          orderedStops: [userStop, gasStop],
+          totalDistanceMeters,
+          estimatedScore,
+          selectedGasStationId: gasStation.id,
+        };
+      }
+    }
+
+    return bestGasOnlyPlan;
+  }
+
+  const groceryStop: RouteStop = {
+    id: selectedStore.id,
+    name: selectedStore.name,
+    address: selectedStore.address,
+    type: 'grocery',
+    coordinates: selectedStore.coordinates,
+  };
+
+  const directRouteDistance = getRouteDistance([
+    userLocation,
+    selectedStore.coordinates,
+  ]);
+
+  if (!shouldGetGas || gasStations.length === 0) {
+    return {
+      orderedStops: [userStop, groceryStop],
+      totalDistanceMeters: directRouteDistance,
+      estimatedScore: directRouteDistance,
+      selectedStoreId: selectedStore.id,
+    };
+  }
+
+  let bestPlan: TripPlan | null = null;
+
+  for (const gasStation of gasStations) {
+    const gasStop: RouteStop = {
+      id: gasStation.id,
+      name: gasStation.name,
+      address: gasStation.address,
+      type: 'gas',
+      coordinates: gasStation.coordinates,
+      pricePerGallon: gasStation.pricePerGallon,
+    };
+
+    const candidateRoutes: RouteStop[][] = [
+      [userStop, gasStop, groceryStop],
+      [userStop, groceryStop, gasStop],
+    ];
+
+    for (const orderedStops of candidateRoutes) {
+      const totalDistanceMeters = getRouteDistance(
+        orderedStops.map(stop => stop.coordinates)
+      );
+      const detourDistanceMiles = Math.max(0, totalDistanceMeters - directRouteDistance) / 1609.34;
+      const estimatedScore =
+        detourDistanceMiles * DETOUR_DISTANCE_WEIGHT +
+        gasStation.pricePerGallon * GAS_PRICE_WEIGHT;
+
+      if (!bestPlan || estimatedScore < bestPlan.estimatedScore) {
+        bestPlan = {
+          orderedStops,
+          totalDistanceMeters,
+          estimatedScore,
+          selectedStoreId: selectedStore.id,
+          selectedGasStationId: gasStation.id,
+        };
+      }
+    }
+  }
+
+  return bestPlan;
+};

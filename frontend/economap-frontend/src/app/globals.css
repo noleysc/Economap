@@ -1,0 +1,161 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+
+  /* Custom Colors */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --primary: 174 72% 38%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 222 89% 58%;
+  --secondary-foreground: 0 0% 100%;
+  --accent: 28 92% 60%;
+  --accent-foreground: 220 30% 14%;
+
+  --background: 220 30% 97%;
+  --foreground: 220 20% 17%;
+  --border: 214 32% 90%;
+  --input: 214 32% 90%;
+  --ring: 174 72% 38%;
+
+  /* Default shadcn/ui radius, keep if needed */
+  --radius: 0.625rem;
+
+  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+}
+
+.dark {
+  --primary: 174 72% 52%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 222 89% 66%;
+  --secondary-foreground: 0 0% 100%;
+  --accent: 28 92% 63%;
+  --accent-foreground: 220 30% 10%;
+
+  --background: 222 25% 10%;
+  --foreground: 220 20% 92%;
+  --border: 222 22% 20%;
+  --input: 222 22% 20%;
+  --ring: 174 72% 52%;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply relative min-h-screen bg-background text-foreground;
+    isolation: isolate;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -20%;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 15% 20%, hsl(var(--primary) / 0.14), transparent 32%),
+      radial-gradient(circle at 85% 15%, hsl(var(--secondary) / 0.12), transparent 30%),
+      radial-gradient(circle at 50% 85%, hsl(var(--accent) / 0.12), transparent 28%),
+      linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)));
+    background-repeat: no-repeat;
+    background-size: cover;
+    filter: saturate(110%);
+  }
+  html {
+    @apply font-sans;
+  }
+
+  button {
+    @apply cursor-pointer shadow-sm transition-[transform,box-shadow,background-color,opacity] duration-200 ease-out;
+  }
+
+  button:hover {
+    @apply shadow-md;
+  }
+
+  button:active {
+    transform: translateY(1px);
+  }
+}
+
+.leaflet-routing-container {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.leaflet-control-container .leaflet-routing-container-hide {
+  width: 32px;
+  height: 32px;
+}
+
+.leaflet-control-container .leaflet-routing-container-hide .leaflet-routing-alt,
+.leaflet-control-container .leaflet-routing-container-hide .leaflet-routing-geocoders {
+  display: none;
+}
+
+.leaflet-routing-collapse-btn {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  font-size: 24px;
+  color: hsl(var(--primary));
+  font-weight: bold;
+}
+
+.leaflet-routing-collapse-btn:after {
+  content: '×';
+}
+
+.leaflet-routing-container-hide .leaflet-routing-collapse-btn {
+  position: relative;
+  left: 4px;
+  top: 4px;
+  display: block;
+  width: 26px;
+  height: 23px;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  box-shadow: 0 12px 24px -12px rgba(15, 23, 42, 0.65);
+}
+
+.leaflet-routing-container-hide .leaflet-routing-collapse-btn:after {
+  content: '+';
+  position: relative;
+  top: -3px;
+  left: 1px;
+  color: hsl(var(--primary-foreground));
+  font-size: 16px;
+}
+
+.leaflet-routing-container h2,
+.leaflet-routing-container h3,
+.leaflet-routing-container .leaflet-routing-alt,
+.leaflet-routing-container .leaflet-routing-instructions {
+  color: hsl(var(--foreground));
+}
+
+.red-marker-icon {
+  filter: hue-rotate(240deg) saturate(200%) brightness(70%); /* Adjust to get a red shade */
+}
