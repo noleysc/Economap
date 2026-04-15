@@ -10,8 +10,8 @@ interface BuildTripPlanArgs {
   shouldGetGas: boolean;
 }
 
-const ESTIMATED_COST_PER_ADDED_MILE = 0.35;
-const ESTIMATED_FILL_UP_GALLONS = 10;
+const DISTANCE_PRIORITY_WEIGHT = 15;
+const GAS_PRICE_WEIGHT = 8;
 
 const getRouteDistance = (waypoints: { lat: number; lng: number }[]) => {
   if (waypoints.length < 2) {
@@ -91,11 +91,10 @@ export const buildTripPlan = ({
       const totalDistanceMeters = getRouteDistance(
         orderedStops.map(stop => stop.coordinates)
       );
-      const additionalDistanceMeters = Math.max(0, totalDistanceMeters - directRouteDistance);
-      const additionalDistanceMiles = additionalDistanceMeters / 1609.34;
+      const totalDistanceMiles = totalDistanceMeters / 1609.34;
       const estimatedScore =
-        additionalDistanceMiles * ESTIMATED_COST_PER_ADDED_MILE +
-        gasStation.pricePerGallon * ESTIMATED_FILL_UP_GALLONS;
+        totalDistanceMiles * DISTANCE_PRIORITY_WEIGHT +
+        gasStation.pricePerGallon * GAS_PRICE_WEIGHT;
 
       if (!bestPlan || estimatedScore < bestPlan.estimatedScore) {
         bestPlan = {

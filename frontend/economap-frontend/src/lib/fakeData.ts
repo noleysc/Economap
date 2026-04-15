@@ -40,7 +40,7 @@ export const generateFakeStores = (count: number, lat: number, lng: number, radi
     stores.push({
       id: `store-${i}`,
       name: `${storeNames[i % storeNames.length]} ${i + 1}`,
-      address: `${100 + i} Market St, Los Angeles`,
+      address: `${100 + i} Market St, Nearby`,
       coordinates,
     });
   }

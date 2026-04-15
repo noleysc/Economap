@@ -9,6 +9,7 @@ interface RoutingMachineProps extends L.ControlOptions {
 
 const createRoutineMachineLayer = (props: RoutingMachineProps) => {
   const instance = L.Routing.control({
+    collapsible: true,
     plan: L.Routing.plan(props.waypoints, {
       addWaypoints: false,
       draggableWaypoints: true,
@@ -35,7 +36,7 @@ const createRoutineMachineLayer = (props: RoutingMachineProps) => {
       distanceTemplate: '{value} {unit}'
     }),
     summaryTemplate: '<h2>{name}</h2><h3>{distance}, {time}</h3>'
-  });
+  } as L.Routing.RoutingControlOptions & { collapsed: boolean });
 
   return instance;
 };

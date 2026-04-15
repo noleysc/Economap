@@ -2,7 +2,7 @@
 
 import { Store, GasStation } from '@/types';
 import { useLocationStore } from '@/store/useLocationStore';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import L from 'leaflet'; // Import Leaflet for custom icon
@@ -38,7 +38,6 @@ const gasStationIcon = new L.Icon({
 
 export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: PriceMapProps) => {
   const { latitude, longitude } = useLocationStore();
-  const [itineraryCollapsed, setItineraryCollapsed] = useState(false);
 
 
   useEffect(() => {
@@ -51,26 +50,23 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
     });
   }, []);
 
-  // Default center if no stores are provided, or calculate from stores
-  const defaultCenter: [number, number] = [34.052235, -118.243683]; // Los Angeles coordinates
-  const mapCenter = latitude && longitude
-    ? [latitude, longitude]
-    : stores.length > 0
-    ? [stores[0].coordinates.lat, stores[0].coordinates.lng]
-    : defaultCenter;
+  if (latitude === null || longitude === null) {
+    return (
+      <div className="flex h-[500px] w-full items-center justify-center rounded-2xl border border-border bg-white/90 px-6 text-center shadow-lg backdrop-blur">
+        <div>
+          <p className="text-lg font-semibold text-slate-900">Locating your current position</p>
+          <p className="mt-2 text-sm text-slate-500">Allow location access so the map can start at where you are now.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const mapCenter: [number, number] = [latitude, longitude];
 
 
 
   return (
-    <div className={`h-[500px] w-full rounded-lg relative z-0 border border-border shadow-lg overflow-hidden ${itineraryCollapsed ? 'itinerary-collapsed' : ''}`}>
-      <button 
-        className="absolute top-2 right-2 z-10 bg-white p-1 rounded-full shadow-md"
-        onClick={() => setItineraryCollapsed(!itineraryCollapsed)}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${itineraryCollapsed ? 'transform rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
+    <div className="relative z-0 h-[500px] w-full overflow-hidden rounded-lg border border-border shadow-lg">
       <MapContainer center={mapCenter as [number, number]} zoom={13} scrollWheelZoom={false} className="h-full w-full">
         <TileLayer
           attribution='&copy; <a href="https://www.org/copyright">OpenStreetMap</a> contributors'
@@ -97,7 +93,7 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
                 <p>{store.address}</p>
                 <button 
                   onClick={() => onStoreClick(store.id)}
-                  className="mt-2 bg-primary text-primary-foreground py-1 px-3 rounded-md text-sm hover:bg-primary-dark transition-colors duration-200"
+                  className="mt-3 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_10px_24px_-12px_rgba(13,148,136,0.85)] ring-1 ring-emerald-200/70 transition-colors duration-200 hover:bg-emerald-700"
                 >
                   View Details
                 </button>

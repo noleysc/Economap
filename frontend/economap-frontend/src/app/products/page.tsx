@@ -9,29 +9,31 @@ export default function ProductsPage() {
   const { getGas, toggleGetGas } = useCartStore();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-start p-8 bg-background text-foreground font-sans">
-      <h1 className="text-4xl font-bold mb-8 text-primary">Select Products</h1>
-      <div className="flex flex-col md:flex-row w-full max-w-5xl gap-8">
-        <div className="flex flex-col items-center w-full md:w-1/2">
-          <ProductList />
-        </div>
-        <div className="flex flex-col items-center w-full md:w-1/2">
-          <ShoppingCart />
-          <div className="w-full max-w-md mt-4 p-4 border border-border rounded-lg shadow-lg bg-white flex items-center justify-between">
-            <label htmlFor="getGas" className="text-lg font-medium text-foreground">Get Gas?</label>
-            <input
-              type="checkbox"
-              id="getGas"
-              checked={getGas}
-              onChange={toggleGetGas}
-              className="h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary"
-            />
+    <main className="min-h-screen bg-background px-4 py-6 font-sans text-foreground md:px-8 md:py-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-col">
+        <h1 className="mb-6 text-center text-3xl font-semibold tracking-tight text-primary md:mb-8 md:text-5xl">Select Products</h1>
+        <div className="flex flex-col gap-6 md:flex-row md:gap-8">
+          <div className="flex w-full flex-col items-center md:w-1/2">
+            <ProductList />
           </div>
-          <Link href="/" className="w-full max-w-md mt-4">
-            <button className="w-full bg-blue-500 text-white py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-all duration-300 ease-in-out transform hover:scale-105">
-              Plan Trip
-            </button>
-          </Link>
+          <div className="flex w-full flex-col items-center md:w-1/2">
+            <ShoppingCart />
+            <div className="mt-4 flex w-full max-w-md items-center justify-between rounded-2xl border border-white/70 bg-white/90 p-4 shadow-lg backdrop-blur">
+              <label htmlFor="getGas" className="text-base font-medium text-slate-800 md:text-lg">Get Gas?</label>
+              <input
+                type="checkbox"
+                id="getGas"
+                checked={getGas}
+                onChange={toggleGetGas}
+                className="h-5 w-5 rounded border-slate-300 text-primary focus:ring-primary"
+              />
+            </div>
+            <Link href="/" className="mt-4 w-full max-w-md">
+              <button className="w-full rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-[0_12px_30px_-12px_rgba(13,148,136,0.85)] ring-1 ring-emerald-200/70 transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:opacity-95">
+                Plan Trip
+              </button>
+            </Link>
+          </div>
         </div>
       </div>
     </main>

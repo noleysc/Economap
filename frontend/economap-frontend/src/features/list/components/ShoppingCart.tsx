@@ -8,19 +8,19 @@ export const ShoppingCart = () => {
   const { items, removeItem, clearCart } = useCartStore();
 
   return (
-    <div className="p-6 border border-border rounded-lg shadow-lg bg-white w-full max-w-md mt-8 animate-slide-in-right">
-      <h2 className="text-2xl font-bold mb-4 text-accent">Shopping Cart</h2>
+    <div className="mt-8 w-full max-w-md rounded-2xl border border-white/70 bg-white/90 p-5 shadow-lg backdrop-blur animate-slide-in-right md:p-6">
+      <h2 className="mb-4 text-2xl font-semibold text-slate-900">Shopping Cart</h2>
       {items.length === 0 ? (
-        <p className="text-foreground text-lg">Your cart is empty. Add some products!</p>
+        <p className="text-base text-slate-700 md:text-lg">Your cart is empty. Add some products.</p>
       ) : (
         <>
           <ul className="space-y-3">
             {items.map((item) => (
-              <li key={item.id} className="flex justify-between items-center py-2 border-b border-border last:border-b-0">
-                <span className="text-foreground text-lg font-medium">{item.name}</span>
+              <li key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <span className="text-base font-medium text-slate-800 md:text-lg">{item.name}</span>
                 <button 
                   onClick={() => removeItem(item.id)}
-                  className="text-red-500 hover:text-red-700 transition-colors duration-200 ease-in-out transform hover:scale-105"
+                  className="rounded-full border border-rose-200 bg-white px-3 py-1 text-sm font-semibold text-rose-600 shadow-sm transition-colors duration-200 ease-in-out hover:bg-rose-50 hover:text-rose-700"
                 >
                   Remove
                 </button>
@@ -29,7 +29,7 @@ export const ShoppingCart = () => {
           </ul>
           <button 
             onClick={clearCart}
-            className="mt-6 w-full bg-secondary text-secondary-foreground py-3 px-6 rounded-lg shadow-md hover:bg-secondary-dark transition-all duration-300 ease-in-out transform hover:scale-105"
+            className="mt-6 w-full rounded-full bg-secondary px-6 py-3 text-base font-semibold text-secondary-foreground shadow-[0_12px_30px_-12px_rgba(37,99,235,0.8)] ring-1 ring-blue-200/70 transition-all duration-300 ease-in-out hover:scale-[1.02] hover:bg-blue-600"
           >
             Clear Cart
           </button>
