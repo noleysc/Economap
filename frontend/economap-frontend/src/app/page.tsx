@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { buildTripPlan } from '@/features/map/components/routing-engine';
 import { getGasStationsNearLocation, getProductPricesForStores, getStoresNearLocation } from '@/lib/dataSource';
-import { getRouteMetrics } from '@/lib/routingUtils';
+import { getRouteMetrics, haversineDistance } from '@/lib/routingUtils';
 import { useCartStore } from '@/store/useCartStore';
 import { useLocationStore } from '@/store/useLocationStore';
 import { CartItem, GasStation, Product, RouteLegEstimate, Store, TripEstimateSummary } from '@/types';
@@ -39,7 +39,10 @@ const legendItems = [
 
 interface StoreWithCartBalance extends Store {
   cartBalance: number | null;
+  distanceMiles: number | null;
 }
+
+type StoreSortMode = 'best' | 'price' | 'distance';
 
 const METERS_PER_MILE = 1_609.34;
 const MIN_SEARCH_RADIUS_MILES = 2;
@@ -73,6 +76,7 @@ export default function Home() {
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [searchRadiusMiles, setSearchRadiusMiles] = useState(DEFAULT_SEARCH_RADIUS_MILES);
   const [isBestStoresExpanded, setIsBestStoresExpanded] = useState(true);
+  const [storeSortMode, setStoreSortMode] = useState<StoreSortMode>('best');
   const [tripEstimateSummary, setTripEstimateSummary] = useState<TripEstimateSummary | null>(null);
   const [isTripEstimateLoading, setIsTripEstimateLoading] = useState(false);
   const selectedProducts = useMemo<Product[]>(
@@ -125,7 +129,18 @@ export default function Home() {
 
   const storesWithBalances: StoreWithCartBalance[] = useMemo(() => {
     if (selectedProducts.length === 0) {
-      return storesInRadius.map(store => ({ ...store, cartBalance: null }));
+      return storesInRadius.map((store) => ({
+        ...store,
+        cartBalance: null,
+        distanceMiles: userLocation
+          ? haversineDistance(
+              userLocation.lat,
+              userLocation.lng,
+              store.coordinates.lat,
+              store.coordinates.lng
+            ) / METERS_PER_MILE
+          : null,
+      }));
     }
 
     return storesInRadius
@@ -145,16 +160,55 @@ export default function Home() {
         return {
           ...store,
           cartBalance: allProductsAvailable ? parseFloat(totalBalance.toFixed(2)) : null,
+          distanceMiles: userLocation
+            ? haversineDistance(
+                userLocation.lat,
+                userLocation.lng,
+                store.coordinates.lat,
+                store.coordinates.lng
+              ) / METERS_PER_MILE
+            : null,
         };
       })
-      .filter(store => store.cartBalance !== null)
-      .sort((a, b) => (a.cartBalance || Infinity) - (b.cartBalance || Infinity));
-  }, [cartItems, productPrices, selectedProducts.length, storesInRadius]);
+      .filter(store => store.cartBalance !== null);
+  }, [cartItems, productPrices, selectedProducts.length, storesInRadius, userLocation]);
 
-  const storesToDisplay = useMemo(
-    () => storesWithBalances.filter(store => store.cartBalance !== null),
-    [storesWithBalances]
-  );
+  const storesToDisplay = useMemo(() => {
+    const comparableStores = storesWithBalances.filter(
+      (store): store is StoreWithCartBalance & { cartBalance: number; distanceMiles: number } =>
+        store.cartBalance !== null && store.distanceMiles !== null
+    );
+
+    if (comparableStores.length === 0) {
+      return storesWithBalances.filter(store => store.cartBalance !== null);
+    }
+
+    if (storeSortMode === 'price') {
+      return [...comparableStores].sort((a, b) => a.cartBalance - b.cartBalance);
+    }
+
+    if (storeSortMode === 'distance') {
+      return [...comparableStores].sort((a, b) => a.distanceMiles - b.distanceMiles);
+    }
+
+    const minPrice = Math.min(...comparableStores.map((store) => store.cartBalance));
+    const maxPrice = Math.max(...comparableStores.map((store) => store.cartBalance));
+    const minDistance = Math.min(...comparableStores.map((store) => store.distanceMiles));
+    const maxDistance = Math.max(...comparableStores.map((store) => store.distanceMiles));
+    const priceRange = Math.max(maxPrice - minPrice, 0.01);
+    const distanceRange = Math.max(maxDistance - minDistance, 0.01);
+
+    return [...comparableStores].sort((a, b) => {
+      const aPriceScore = (a.cartBalance - minPrice) / priceRange;
+      const bPriceScore = (b.cartBalance - minPrice) / priceRange;
+      const aDistanceScore = (a.distanceMiles - minDistance) / distanceRange;
+      const bDistanceScore = (b.distanceMiles - minDistance) / distanceRange;
+      const aCompositeScore = aPriceScore * 0.6 + aDistanceScore * 0.4;
+      const bCompositeScore = bPriceScore * 0.6 + bDistanceScore * 0.4;
+
+      return aCompositeScore - bCompositeScore;
+    });
+  }, [storeSortMode, storesWithBalances]);
   const activeSelectedStoreId = useMemo(
     () => (selectedStoreId && storesToDisplay.some((store) => store.id === selectedStoreId) ? selectedStoreId : null),
     [selectedStoreId, storesToDisplay]
@@ -463,6 +517,28 @@ export default function Home() {
                   </button>
                 </div>
 
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {[
+                    { label: 'Economap Best Choice', value: 'best' as const },
+                    { label: 'Lowest Price', value: 'price' as const },
+                    { label: 'Lowest Distance', value: 'distance' as const },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setStoreSortMode(option.value)}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold ring-1 transition-colors duration-200 ${
+                        storeSortMode === option.value
+                          ? 'bg-primary text-primary-foreground ring-emerald-200/70 shadow-[0_10px_24px_-12px_rgba(13,148,136,0.8)]'
+                          : 'bg-slate-100 text-slate-700 ring-slate-200 hover:bg-slate-200'
+                      }`}
+                      aria-pressed={storeSortMode === option.value}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
                 {isBestStoresExpanded && (
                   <ul className="mt-4 space-y-3">
                     {storesToDisplay.map(store => (
@@ -470,6 +546,9 @@ export default function Home() {
                         <div className="min-w-0">
                           <h3 className="truncate text-base font-medium text-slate-900 md:text-lg">{store.name}</h3>
                           <p className="truncate text-sm text-slate-500">{store.address}</p>
+                          {store.distanceMiles !== null && (
+                            <p className="text-sm text-slate-500">{store.distanceMiles.toFixed(1)} miles away</p>
+                          )}
                         </div>
 
                         <div className="flex items-center justify-between gap-3 sm:justify-end">
