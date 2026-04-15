@@ -52,7 +52,7 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
 
   if (latitude === null || longitude === null) {
     return (
-      <div className="flex h-[500px] w-full items-center justify-center rounded-2xl border border-border bg-white/90 px-6 text-center shadow-lg backdrop-blur">
+      <div className="flex h-full w-full items-center justify-center bg-transparent px-6 text-center">
         <div>
           <p className="text-lg font-semibold text-slate-900">Locating your current position</p>
           <p className="mt-2 text-sm text-slate-500">Allow location access so the map can start at where you are now.</p>
@@ -66,7 +66,7 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations }: Price
 
 
   return (
-    <div className="relative z-0 h-[500px] w-full overflow-hidden rounded-lg border border-border shadow-lg">
+    <div className="relative z-0 h-full w-full overflow-hidden rounded-[inherit] bg-transparent">
       <MapContainer center={mapCenter as [number, number]} zoom={13} scrollWheelZoom={false} className="h-full w-full">
         <TileLayer
           attribution='&copy; <a href="https://www.org/copyright">OpenStreetMap</a> contributors'
