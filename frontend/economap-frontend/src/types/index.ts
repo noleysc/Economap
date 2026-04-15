@@ -6,6 +6,11 @@ export interface Product {
   image_url: string;
 }
 
+export interface CartItem {
+  product: Product;
+  quantity: number;
+}
+
 export interface Store {
   id: string;
   name: string; // e.g., "Publix", "Walmart"

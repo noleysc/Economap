@@ -7,9 +7,10 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { buildTripPlan } from '@/features/map/components/routing-engine';
 import { generateFakeGasStations, generateFakeProductPrices, generateFakeStores } from '@/lib/fakeData';
+import { haversineDistance } from '@/lib/routingUtils';
 import { useCartStore } from '@/store/useCartStore';
 import { useLocationStore } from '@/store/useLocationStore';
-import { GasStation, Store } from '@/types';
+import { CartItem, GasStation, Product, Store } from '@/types';
 
 const PriceMap = dynamic(() => import('@/features/map/components/PriceMap').then(mod => mod.PriceMap), { ssr: false });
 
@@ -40,38 +41,77 @@ interface StoreWithCartBalance extends Store {
   cartBalance: number | null;
 }
 
+const METERS_PER_MILE = 1_609.34;
+const MIN_SEARCH_RADIUS_MILES = 2;
+const MAX_SEARCH_RADIUS_MILES = 25;
+const DEFAULT_SEARCH_RADIUS_MILES = 7;
+const MAX_SEARCH_RADIUS_METERS = MAX_SEARCH_RADIUS_MILES * METERS_PER_MILE;
+const TOTAL_GROCERY_STORE_COUNT = 56;
+const TOTAL_GAS_STATION_COUNT = 30;
+
 export default function Home() {
-  const { items: selectedProducts, getGas } = useCartStore();
+  const { items: cartItems, getGas } = useCartStore();
   const { latitude, longitude, setLocation } = useLocationStore();
 
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
-  const fakeStores = useMemo<Store[]>(
-    () => (latitude && longitude ? generateFakeStores(10, latitude, longitude, 10000) : []),
+  const [searchRadiusMiles, setSearchRadiusMiles] = useState(DEFAULT_SEARCH_RADIUS_MILES);
+  const selectedProducts = useMemo<Product[]>(
+    () => cartItems.map((item) => item.product),
+    [cartItems]
+  );
+  const searchRadiusMeters = useMemo(
+    () => searchRadiusMiles * METERS_PER_MILE,
+    [searchRadiusMiles]
+  );
+  const allFakeStores = useMemo<Store[]>(
+    () => (latitude && longitude ? generateFakeStores(TOTAL_GROCERY_STORE_COUNT, latitude, longitude, MAX_SEARCH_RADIUS_METERS) : []),
     [latitude, longitude]
   );
-  const fakeGasStations = useMemo<GasStation[]>(
-    () => (latitude && longitude ? generateFakeGasStations(5, latitude, longitude, 8000) : []),
+  const allFakeGasStations = useMemo<GasStation[]>(
+    () => (latitude && longitude ? generateFakeGasStations(TOTAL_GAS_STATION_COUNT, latitude, longitude, MAX_SEARCH_RADIUS_METERS) : []),
     [latitude, longitude]
   );
+  const userLocation = useMemo(
+    () => (latitude && longitude ? { lat: latitude, lng: longitude } : null),
+    [latitude, longitude]
+  );
+  const storesInRadius = useMemo(() => {
+    if (!userLocation) {
+      return [];
+    }
+
+    return allFakeStores.filter((store) =>
+      haversineDistance(userLocation.lat, userLocation.lng, store.coordinates.lat, store.coordinates.lng) <= searchRadiusMeters
+    );
+  }, [allFakeStores, searchRadiusMeters, userLocation]);
+  const gasStationsInRadius = useMemo(() => {
+    if (!userLocation) {
+      return [];
+    }
+
+    return allFakeGasStations.filter((station) =>
+      haversineDistance(userLocation.lat, userLocation.lng, station.coordinates.lat, station.coordinates.lng) <= searchRadiusMeters
+    );
+  }, [allFakeGasStations, searchRadiusMeters, userLocation]);
   const productPrices = useMemo(
-    () => (selectedProducts.length > 0 ? generateFakeProductPrices(fakeStores, selectedProducts) : {}),
-    [fakeStores, selectedProducts]
+    () => (selectedProducts.length > 0 ? generateFakeProductPrices(allFakeStores, selectedProducts) : {}),
+    [allFakeStores, selectedProducts]
   );
 
   const storesWithBalances: StoreWithCartBalance[] = useMemo(() => {
     if (selectedProducts.length === 0) {
-      return fakeStores.map(store => ({ ...store, cartBalance: null }));
+      return storesInRadius.map(store => ({ ...store, cartBalance: null }));
     }
 
-    return fakeStores
+    return storesInRadius
       .map(store => {
         let totalBalance = 0;
         let allProductsAvailable = true;
 
-        selectedProducts.forEach(product => {
-          const price = productPrices[store.id]?.[product.id];
+        cartItems.forEach((item: CartItem) => {
+          const price = productPrices[store.id]?.[item.product.id];
           if (price !== undefined) {
-            totalBalance += price;
+            totalBalance += price * item.quantity;
           } else {
             allProductsAvailable = false;
           }
@@ -84,32 +124,32 @@ export default function Home() {
       })
       .filter(store => store.cartBalance !== null)
       .sort((a, b) => (a.cartBalance || Infinity) - (b.cartBalance || Infinity));
-  }, [fakeStores, productPrices, selectedProducts]);
+  }, [cartItems, productPrices, selectedProducts.length, storesInRadius]);
 
   const storesToDisplay = useMemo(
     () => storesWithBalances.filter(store => store.cartBalance !== null),
     [storesWithBalances]
   );
-
-  const mapStores = useMemo(() => {
-    return selectedStoreId
-      ? storesToDisplay.filter(store => store.id === selectedStoreId)
-      : storesToDisplay;
-  }, [selectedStoreId, storesToDisplay]);
-
-  const filteredGasStations = useMemo(() => {
-    return getGas ? fakeGasStations : [];
-  }, [fakeGasStations, getGas]);
-
-  const selectedStore = useMemo(
-    () => storesToDisplay.find(store => store.id === selectedStoreId) ?? null,
+  const activeSelectedStoreId = useMemo(
+    () => (selectedStoreId && storesToDisplay.some((store) => store.id === selectedStoreId) ? selectedStoreId : null),
     [selectedStoreId, storesToDisplay]
   );
 
-  const userLocation = useMemo(
-    () => (latitude && longitude ? { lat: latitude, lng: longitude } : null),
-    [latitude, longitude]
+  const mapStores = useMemo(() => {
+    return activeSelectedStoreId
+      ? storesToDisplay.filter(store => store.id === activeSelectedStoreId)
+      : storesToDisplay;
+  }, [activeSelectedStoreId, storesToDisplay]);
+
+  const filteredGasStations = useMemo(() => {
+    return getGas ? gasStationsInRadius : [];
+  }, [gasStationsInRadius, getGas]);
+
+  const selectedStore = useMemo(
+    () => storesToDisplay.find(store => store.id === activeSelectedStoreId) ?? null,
+    [activeSelectedStoreId, storesToDisplay]
   );
+
   const tripPlan = useMemo(
     () => buildTripPlan({
       userLocation,
@@ -197,6 +237,36 @@ export default function Home() {
               </div>
             </div>
 
+            <div className="mb-4 w-full max-w-xl px-2">
+              <div className="rounded-2xl border border-white/70 bg-white/90 p-5 shadow-lg backdrop-blur">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-900 md:text-lg">Search Radius</h2>
+                    <p className="text-sm text-slate-500">Show grocery stores and gas stations within your selected distance.</p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
+                    {searchRadiusMiles} mi
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={MIN_SEARCH_RADIUS_MILES}
+                  max={MAX_SEARCH_RADIUS_MILES}
+                  step={1}
+                  value={searchRadiusMiles}
+                  onChange={(event) => setSearchRadiusMiles(Number(event.target.value))}
+                  className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-primary"
+                />
+                <div className="mt-2 flex justify-between text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+                  <span>{MIN_SEARCH_RADIUS_MILES} miles</span>
+                  <span>{MAX_SEARCH_RADIUS_MILES} miles</span>
+                </div>
+                <p className="mt-4 text-sm text-slate-600">
+                  Showing {storesInRadius.length} grocery stores and {gasStationsInRadius.length} gas stations within {searchRadiusMiles} miles.
+                </p>
+              </div>
+            </div>
+
             {selectedProducts.length === 0 && (
               <div className="mt-4 w-full max-w-md rounded-2xl border border-white/70 bg-white/90 p-5 shadow-lg backdrop-blur animate-fade-in">
                 <p className="text-center text-base text-slate-700 md:text-lg">Add products to your cart to plan a trip.</p>
@@ -224,9 +294,9 @@ export default function Home() {
                         <span className="text-lg font-bold text-primary">${store.cartBalance?.toFixed(2)}</span>
                         <button
                           onClick={() => handleStoreClick(store.id)}
-                          className={`rounded-full px-4 py-2 text-sm font-semibold ring-1 ring-black/10 transition-all duration-300 ease-in-out ${selectedStoreId === store.id ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_-12px_rgba(13,148,136,0.8)]' : 'bg-slate-200 text-slate-800 shadow-[0_10px_24px_-16px_rgba(15,23,42,0.35)] hover:bg-slate-300'}`}
+                          className={`rounded-full px-4 py-2 text-sm font-semibold ring-1 ring-black/10 transition-all duration-300 ease-in-out ${activeSelectedStoreId === store.id ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_-12px_rgba(13,148,136,0.8)]' : 'bg-slate-200 text-slate-800 shadow-[0_10px_24px_-16px_rgba(15,23,42,0.35)] hover:bg-slate-300'}`}
                         >
-                          {selectedStoreId === store.id ? 'Selected' : 'Select'}
+                          {activeSelectedStoreId === store.id ? 'Selected' : 'Select'}
                         </button>
                       </div>
                     </li>
@@ -268,9 +338,9 @@ export default function Home() {
               <div className="mt-6 w-full max-w-md rounded-2xl border border-white/70 bg-white/90 p-5 shadow-lg backdrop-blur animate-fade-in">
                 <h2 className="mb-4 text-xl font-semibold text-slate-900 md:text-2xl">Selected Products</h2>
                 <ul className="list-disc space-y-2 pl-5">
-                  {selectedProducts.map(product => (
-                    <li key={product.id} className="text-base text-slate-700 md:text-lg">
-                      <span className="font-medium text-slate-900">{product.name}</span> from {product.brand}
+                  {cartItems.map(item => (
+                    <li key={item.product.id} className="text-base text-slate-700 md:text-lg">
+                      <span className="font-medium text-slate-900">{item.product.name}</span> from {item.product.brand} x{item.quantity}
                     </li>
                   ))}
                 </ul>
