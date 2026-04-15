@@ -7,9 +7,10 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { buildTripPlan } from '@/features/map/components/routing-engine';
 import { getGasStationsNearLocation, getProductPricesForStores, getStoresNearLocation } from '@/lib/dataSource';
+import { getRouteMetrics } from '@/lib/routingUtils';
 import { useCartStore } from '@/store/useCartStore';
 import { useLocationStore } from '@/store/useLocationStore';
-import { CartItem, GasStation, Product, Store } from '@/types';
+import { CartItem, GasStation, Product, RouteLegEstimate, Store, TripEstimateSummary } from '@/types';
 
 const PriceMap = dynamic(() => import('@/features/map/components/PriceMap').then(mod => mod.PriceMap), { ssr: false });
 
@@ -44,6 +45,25 @@ const METERS_PER_MILE = 1_609.34;
 const MIN_SEARCH_RADIUS_MILES = 2;
 const MAX_SEARCH_RADIUS_MILES = 25;
 const DEFAULT_SEARCH_RADIUS_MILES = 7;
+const SECONDS_PER_MINUTE = 60;
+
+const formatMiles = (distanceMeters: number) => `${(distanceMeters / METERS_PER_MILE).toFixed(1)} mi`;
+
+const formatDuration = (durationSeconds: number) => {
+  const roundedMinutes = Math.max(1, Math.round(durationSeconds / SECONDS_PER_MINUTE));
+  const hours = Math.floor(roundedMinutes / 60);
+  const minutes = roundedMinutes % 60;
+
+  if (hours === 0) {
+    return `${roundedMinutes} min`;
+  }
+
+  if (minutes === 0) {
+    return `${hours} hr`;
+  }
+
+  return `${hours} hr ${minutes} min`;
+};
 
 export default function Home() {
   const { items: cartItems, getGas } = useCartStore();
@@ -51,6 +71,9 @@ export default function Home() {
 
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [searchRadiusMiles, setSearchRadiusMiles] = useState(DEFAULT_SEARCH_RADIUS_MILES);
+  const [isBestStoresExpanded, setIsBestStoresExpanded] = useState(true);
+  const [tripEstimateSummary, setTripEstimateSummary] = useState<TripEstimateSummary | null>(null);
+  const [isTripEstimateLoading, setIsTripEstimateLoading] = useState(false);
   const selectedProducts = useMemo<Product[]>(
     () => cartItems.map((item) => item.product),
     [cartItems]
@@ -185,6 +208,73 @@ export default function Home() {
   }, [filteredGasStations, getGas]);
 
   useEffect(() => {
+    if (!tripPlan || tripPlan.orderedStops.length < 2) {
+      setTripEstimateSummary(null);
+      setIsTripEstimateLoading(false);
+      return;
+    }
+
+    let isActive = true;
+
+    const buildEstimateSummary = async () => {
+      setTripEstimateSummary(null);
+      setIsTripEstimateLoading(true);
+
+      try {
+        const legSummaries = await Promise.all(
+          tripPlan.orderedStops.slice(1).map(async (stop, index) => {
+            const previousStop = tripPlan.orderedStops[index];
+            const metrics = await getRouteMetrics([
+              previousStop.coordinates,
+              stop.coordinates,
+            ]);
+
+            const leg: RouteLegEstimate = {
+              fromStopId: previousStop.id,
+              toStopId: stop.id,
+              distanceMeters: metrics.distanceMeters,
+              durationSeconds: metrics.durationSeconds,
+            };
+
+            return leg;
+          })
+        );
+
+        const finalStop = tripPlan.orderedStops[tripPlan.orderedStops.length - 1];
+        const startStop = tripPlan.orderedStops[0];
+        const returnMetrics = await getRouteMetrics([
+          finalStop.coordinates,
+          startStop.coordinates,
+        ]);
+
+        if (!isActive) {
+          return;
+        }
+
+        setTripEstimateSummary({
+          legs: legSummaries,
+          returnToStart: {
+            fromStopId: finalStop.id,
+            toStopId: startStop.id,
+            distanceMeters: returnMetrics.distanceMeters,
+            durationSeconds: returnMetrics.durationSeconds,
+          },
+        });
+      } finally {
+        if (isActive) {
+          setIsTripEstimateLoading(false);
+        }
+      }
+    };
+
+    void buildEstimateSummary();
+
+    return () => {
+      isActive = false;
+    };
+  }, [tripPlan]);
+
+  useEffect(() => {
     if (!navigator.geolocation) {
       return;
     }
@@ -238,6 +328,71 @@ export default function Home() {
               </div>
             </div>
 
+            {(tripPlan || isTripEstimateLoading) && (
+              <div className="mb-4 w-full max-w-xl px-2">
+                <div className="rounded-2xl border border-white/70 bg-white/90 p-5 shadow-lg backdrop-blur">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-base font-semibold text-slate-900 md:text-lg">Trip Estimates</h2>
+                      <p className="text-sm text-slate-500">Drive time and distance for each stop, plus the hidden return trip home.</p>
+                    </div>
+                    {isTripEstimateLoading && (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                        Calculating...
+                      </span>
+                    )}
+                  </div>
+
+                  {tripPlan && tripEstimateSummary && (
+                    <div className="mt-4 space-y-3">
+                      {tripEstimateSummary.legs.map((leg, index) => {
+                        const destinationStop = tripPlan.orderedStops[index + 1];
+
+                        return (
+                          <div key={`${leg.fromStopId}-${leg.toStopId}`} className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Stop {index + 1}
+                              </p>
+                              <p className="text-sm font-medium text-slate-900">
+                                Drive to {destinationStop.type === 'gas' ? 'gas station' : 'grocery store'}
+                              </p>
+                              <p className="text-sm text-slate-500">{destinationStop.name}</p>
+                              <p className="text-sm text-slate-500">{destinationStop.address}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-slate-900">{formatMiles(leg.distanceMeters)}</p>
+                              <p className="text-sm text-slate-500">{formatDuration(leg.durationSeconds)}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {tripEstimateSummary.returnToStart && (
+                        <div className="flex items-center justify-between gap-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                              Return
+                            </p>
+                            <p className="text-sm font-medium text-slate-900">Estimated drive back home</p>
+                            <p className="text-sm text-slate-500">Hidden from the map route</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {formatMiles(tripEstimateSummary.returnToStart.distanceMeters)}
+                            </p>
+                            <p className="text-sm text-slate-500">
+                              {formatDuration(tripEstimateSummary.returnToStart.durationSeconds)}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="mb-4 w-full max-w-xl px-2">
               <div className="rounded-2xl border border-white/70 bg-white/90 p-5 shadow-lg backdrop-blur">
                 <div className="flex items-center justify-between gap-4">
@@ -282,50 +437,45 @@ export default function Home() {
 
             {selectedProducts.length > 0 && storesToDisplay.length > 0 && (
               <div className="mt-6 w-full max-w-md rounded-2xl border border-white/70 bg-white/90 p-5 shadow-lg backdrop-blur animate-fade-in">
-                <h2 className="mb-4 text-xl font-semibold text-slate-900 md:text-2xl">Best Stores</h2>
-                <ul className="space-y-3">
-                  {storesToDisplay.map(store => (
-                    <li key={store.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-base font-medium text-slate-900 md:text-lg">{store.name}</h3>
-                        <p className="truncate text-sm text-slate-500">{store.address}</p>
-                      </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900 md:text-2xl">Best Stores</h2>
+                    <p className="text-sm text-slate-500">
+                      {storesToDisplay.length} store{storesToDisplay.length === 1 ? '' : 's'} in your current search radius.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsBestStoresExpanded((currentValue) => !currentValue)}
+                    className="rounded-full bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-300 transition-colors duration-200 hover:bg-slate-300"
+                    aria-expanded={isBestStoresExpanded}
+                  >
+                    {isBestStoresExpanded ? 'Collapse' : 'Expand'}
+                  </button>
+                </div>
 
-                      <div className="flex items-center justify-between gap-3 sm:justify-end">
-                        <span className="text-lg font-bold text-primary">${store.cartBalance?.toFixed(2)}</span>
-                        <button
-                          onClick={() => handleStoreClick(store.id)}
-                          className={`rounded-full px-4 py-2 text-sm font-semibold ring-1 ring-black/10 transition-all duration-300 ease-in-out ${activeSelectedStoreId === store.id ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_-12px_rgba(13,148,136,0.8)]' : 'bg-slate-200 text-slate-800 shadow-[0_10px_24px_-16px_rgba(15,23,42,0.35)] hover:bg-slate-300'}`}
-                        >
-                          {activeSelectedStoreId === store.id ? 'Selected' : 'Select'}
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+                {isBestStoresExpanded && (
+                  <ul className="mt-4 space-y-3">
+                    {storesToDisplay.map(store => (
+                      <li key={store.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="truncate text-base font-medium text-slate-900 md:text-lg">{store.name}</h3>
+                          <p className="truncate text-sm text-slate-500">{store.address}</p>
+                        </div>
 
-            {tripPlan && selectedStore && (
-              <div className="mt-6 w-full max-w-md rounded-2xl border border-white/70 bg-white/90 p-5 shadow-lg backdrop-blur animate-fade-in">
-                <h2 className="mb-4 text-xl font-semibold text-slate-900 md:text-2xl">Planned Route</h2>
-                <ul className="space-y-3">
-                {tripPlan.orderedStops.map((stop, index) => (
-                    <li key={`${stop.type}-${stop.id}-${index}`} className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Stop {index + 1} | {stop.type === 'user' ? 'Start' : stop.type === 'gas' ? 'Gas Station' : 'Grocery Store'}
-                        </p>
-                        <h3 className="text-base font-medium text-slate-900 md:text-lg">{stop.name}</h3>
-                        <p className="text-sm text-slate-500">{stop.address}</p>
-                      </div>
-
-                      {stop.type === 'gas' && stop.pricePerGallon !== undefined && (
-                        <span className="text-sm font-semibold text-accent">${stop.pricePerGallon.toFixed(2)}/gal</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                        <div className="flex items-center justify-between gap-3 sm:justify-end">
+                          <span className="text-lg font-bold text-primary">${store.cartBalance?.toFixed(2)}</span>
+                          <button
+                            onClick={() => handleStoreClick(store.id)}
+                            className={`rounded-full px-4 py-2 text-sm font-semibold ring-1 ring-black/10 transition-all duration-300 ease-in-out ${activeSelectedStoreId === store.id ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_-12px_rgba(13,148,136,0.8)]' : 'bg-slate-200 text-slate-800 shadow-[0_10px_24px_-16px_rgba(15,23,42,0.35)] hover:bg-slate-300'}`}
+                          >
+                            {activeSelectedStoreId === store.id ? 'Selected' : 'Select'}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
 

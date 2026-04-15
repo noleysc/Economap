@@ -1,33 +1,11 @@
-export const getRouteDistance = (waypoints: { lat: number; lng: number }[]): Promise<number> => {
-  return new Promise(async (resolve, reject) => {
-    if (typeof window === 'undefined') {
-      // Running on the server, return 0 or handle as appropriate
-      return resolve(0);
-    }
+const METERS_PER_MILE = 1_609.34;
+const FALLBACK_ROUTE_MULTIPLIER = 1.18;
+const FALLBACK_AVERAGE_SPEED_MPH = 32;
 
-    const L = await import('leaflet');
-    await import('leaflet-routing-machine');
-
-    if (waypoints.length < 2) {
-      return resolve(0);
-    }
-
-    const leafletWaypoints = waypoints.map(wp => L.Routing.waypoint(L.latLng(wp.lat, wp.lng)));
-
-    const router = L.Routing.osrmv1();
-        // @ts-expect-error The OSRMv1 router does not have up-to-date types for the route callback.
-    router.route(leafletWaypoints, (err: Error, routes: L.Routing.IRoute[]) => {
-      if (err) {
-        console.error("Error routing:", err);
-        reject(err);
-      } else if (routes && routes.length > 0) {
-        resolve(routes[0].summary.totalDistance);
-      } else {
-        resolve(0); // No route found
-      }
-    });
-  });
-};
+interface RouteMetrics {
+  distanceMeters: number;
+  durationSeconds: number;
+}
 
 // Haversine formula to calculate distance between two lat/lng points
 export const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -44,4 +22,79 @@ export const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2
 
   const d = R * c; // in metres
   return d;
+};
+
+const getFallbackRouteMetrics = (
+  origin: { lat: number; lng: number },
+  destination: { lat: number; lng: number }
+): RouteMetrics => {
+  const straightLineDistanceMeters = haversineDistance(
+    origin.lat,
+    origin.lng,
+    destination.lat,
+    destination.lng
+  );
+  const estimatedDistanceMeters = straightLineDistanceMeters * FALLBACK_ROUTE_MULTIPLIER;
+  const durationHours = (estimatedDistanceMeters / METERS_PER_MILE) / FALLBACK_AVERAGE_SPEED_MPH;
+
+  return {
+    distanceMeters: estimatedDistanceMeters,
+    durationSeconds: durationHours * 60 * 60,
+  };
+};
+
+export const getRouteMetrics = async (
+  waypoints: { lat: number; lng: number }[]
+): Promise<RouteMetrics> => {
+  if (waypoints.length < 2) {
+    return {
+      distanceMeters: 0,
+      durationSeconds: 0,
+    };
+  }
+
+  const [origin, destination] = [waypoints[0], waypoints[waypoints.length - 1]];
+
+  if (typeof window === 'undefined') {
+    return getFallbackRouteMetrics(origin, destination);
+  }
+
+  try {
+    const L = await import('leaflet');
+    await import('leaflet-routing-machine');
+
+    const leafletWaypoints = waypoints.map((waypoint) =>
+      L.Routing.waypoint(L.latLng(waypoint.lat, waypoint.lng))
+    );
+
+    return await new Promise((resolve, reject) => {
+      const router = L.Routing.osrmv1();
+
+      // @ts-expect-error The OSRMv1 router does not have up-to-date types for the route callback.
+      router.route(leafletWaypoints, (err: Error, routes: L.Routing.IRoute[]) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (!routes || routes.length === 0) {
+          resolve(getFallbackRouteMetrics(origin, destination));
+          return;
+        }
+
+        resolve({
+          distanceMeters: routes[0].summary.totalDistance,
+          durationSeconds: routes[0].summary.totalTime,
+        });
+      });
+    });
+  } catch (error) {
+    console.error('Error routing:', error);
+    return getFallbackRouteMetrics(origin, destination);
+  }
+};
+
+export const getRouteDistance = async (waypoints: { lat: number; lng: number }[]): Promise<number> => {
+  const metrics = await getRouteMetrics(waypoints);
+  return metrics.distanceMeters;
 };

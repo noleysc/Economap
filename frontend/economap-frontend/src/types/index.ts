@@ -68,6 +68,18 @@ export interface TripPlan {
   selectedGasStationId?: string;
 }
 
+export interface RouteLegEstimate {
+  fromStopId: string;
+  toStopId: string;
+  distanceMeters: number;
+  durationSeconds: number;
+}
+
+export interface TripEstimateSummary {
+  legs: RouteLegEstimate[];
+  returnToStart: RouteLegEstimate | null;
+}
+
 export interface PriceRecord {
   productId: string;
   storeId: string;
