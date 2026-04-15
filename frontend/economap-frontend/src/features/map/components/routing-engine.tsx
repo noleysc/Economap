@@ -1,146 +1,113 @@
 'use client';
 
-import { useEffect } from 'react';
-
+import { haversineDistance } from '@/lib/routingUtils';
 import { GasStation, RouteStop, Store, TripPlan } from '@/types';
 
-interface RoutingEngineProps {
+interface BuildTripPlanArgs {
   userLocation: { lat: number; lng: number } | null;
   selectedStore: Store | null;
   gasStations: GasStation[];
   shouldGetGas: boolean;
-  getRouteDistance: ((waypoints: { lat: number; lng: number }[]) => Promise<number>) | null;
-  onRouteCalculated: (tripPlan: TripPlan | null) => void;
 }
 
-const ESTIMATED_COST_PER_MILE = 0.22;
+const ESTIMATED_COST_PER_ADDED_MILE = 0.35;
 const ESTIMATED_FILL_UP_GALLONS = 10;
 
-export const RoutingEngine = ({
+const getRouteDistance = (waypoints: { lat: number; lng: number }[]) => {
+  if (waypoints.length < 2) {
+    return 0;
+  }
+
+  return waypoints.slice(1).reduce((totalDistance, waypoint, index) => {
+    const previousWaypoint = waypoints[index];
+
+    return totalDistance + haversineDistance(
+      previousWaypoint.lat,
+      previousWaypoint.lng,
+      waypoint.lat,
+      waypoint.lng
+    );
+  }, 0);
+};
+
+export const buildTripPlan = ({
   userLocation,
   selectedStore,
   gasStations,
   shouldGetGas,
-  getRouteDistance,
-  onRouteCalculated,
-}: RoutingEngineProps) => {
-  useEffect(() => {
-    let isCancelled = false;
+}: BuildTripPlanArgs): TripPlan | null => {
+  if (!userLocation || !selectedStore) {
+    return null;
+  }
 
-    const calculateBestTrip = async () => {
-      if (!userLocation || !selectedStore || !getRouteDistance) {
-        onRouteCalculated(null);
-        return;
-      }
+  const userStop: RouteStop = {
+    id: 'user-location',
+    name: 'Your Location',
+    address: 'Current position',
+    type: 'user',
+    coordinates: userLocation,
+  };
 
-      const groceryStop: RouteStop = {
-        id: selectedStore.id,
-        name: selectedStore.name,
-        address: selectedStore.address,
-        type: 'grocery' as const,
-        coordinates: selectedStore.coordinates,
-      };
+  const groceryStop: RouteStop = {
+    id: selectedStore.id,
+    name: selectedStore.name,
+    address: selectedStore.address,
+    type: 'grocery',
+    coordinates: selectedStore.coordinates,
+  };
 
-      try {
-        if (!shouldGetGas || gasStations.length === 0) {
-          const totalDistanceMeters = await getRouteDistance([
-            userLocation,
-            selectedStore.coordinates,
-          ]);
+  const directRouteDistance = getRouteDistance([
+    userLocation,
+    selectedStore.coordinates,
+  ]);
 
-          if (isCancelled) {
-            return;
-          }
+  if (!shouldGetGas || gasStations.length === 0) {
+    return {
+      orderedStops: [userStop, groceryStop],
+      totalDistanceMeters: directRouteDistance,
+      estimatedScore: directRouteDistance,
+      selectedStoreId: selectedStore.id,
+    };
+  }
 
-          onRouteCalculated({
-            orderedStops: [
-              {
-                id: 'user-location',
-                name: 'Your Location',
-                address: 'Current position',
-                type: 'user',
-                coordinates: userLocation,
-              },
-              groceryStop,
-            ],
-            totalDistanceMeters,
-            estimatedScore: totalDistanceMeters,
-            selectedStoreId: selectedStore.id,
-          });
-          return;
-        }
+  let bestPlan: TripPlan | null = null;
 
-        let bestPlan: TripPlan | null = null;
-
-        for (const gasStation of gasStations) {
-          const gasStop: RouteStop = {
-            id: gasStation.id,
-            name: gasStation.name,
-            address: gasStation.address,
-            type: 'gas' as const,
-            coordinates: gasStation.coordinates,
-            pricePerGallon: gasStation.pricePerGallon,
-          };
-
-          const routeOrders = [
-            [userLocation, gasStation.coordinates, selectedStore.coordinates],
-            [userLocation, selectedStore.coordinates, gasStation.coordinates],
-          ];
-
-          for (const routeCoordinates of routeOrders) {
-            const totalDistanceMeters = await getRouteDistance(routeCoordinates);
-
-            if (isCancelled) {
-              return;
-            }
-
-            const distanceMiles = totalDistanceMeters / 1609.34;
-            const estimatedScore =
-              distanceMiles * ESTIMATED_COST_PER_MILE +
-              gasStation.pricePerGallon * ESTIMATED_FILL_UP_GALLONS;
-
-            const orderedStops: RouteStop[] = routeCoordinates.map((coordinates, index) => {
-              if (index === 0) {
-                return {
-                  id: 'user-location',
-                  name: 'Your Location',
-                  address: 'Current position',
-                  type: 'user',
-                  coordinates,
-                };
-              }
-
-              const isGasStop = coordinates === gasStation.coordinates;
-              return isGasStop ? gasStop : groceryStop;
-            });
-
-            if (!bestPlan || estimatedScore < bestPlan.estimatedScore) {
-              bestPlan = {
-                orderedStops,
-                totalDistanceMeters,
-                estimatedScore,
-                selectedStoreId: selectedStore.id,
-                selectedGasStationId: gasStation.id,
-              };
-            }
-          }
-        }
-
-        onRouteCalculated(bestPlan);
-      } catch (error) {
-        console.error('Unable to calculate route', error);
-        onRouteCalculated(null);
-      }
+  for (const gasStation of gasStations) {
+    const gasStop: RouteStop = {
+      id: gasStation.id,
+      name: gasStation.name,
+      address: gasStation.address,
+      type: 'gas',
+      coordinates: gasStation.coordinates,
+      pricePerGallon: gasStation.pricePerGallon,
     };
 
-    void calculateBestTrip();
+    const candidateRoutes: RouteStop[][] = [
+      [userStop, gasStop, groceryStop],
+      [userStop, groceryStop, gasStop],
+    ];
 
-    return () => {
-      isCancelled = true;
-    };
-  }, [gasStations, getRouteDistance, onRouteCalculated, selectedStore, shouldGetGas, userLocation]);
+    for (const orderedStops of candidateRoutes) {
+      const totalDistanceMeters = getRouteDistance(
+        orderedStops.map(stop => stop.coordinates)
+      );
+      const additionalDistanceMeters = Math.max(0, totalDistanceMeters - directRouteDistance);
+      const additionalDistanceMiles = additionalDistanceMeters / 1609.34;
+      const estimatedScore =
+        additionalDistanceMiles * ESTIMATED_COST_PER_ADDED_MILE +
+        gasStation.pricePerGallon * ESTIMATED_FILL_UP_GALLONS;
 
-  return null;
+      if (!bestPlan || estimatedScore < bestPlan.estimatedScore) {
+        bestPlan = {
+          orderedStops,
+          totalDistanceMeters,
+          estimatedScore,
+          selectedStoreId: selectedStore.id,
+          selectedGasStationId: gasStation.id,
+        };
+      }
+    }
+  }
+
+  return bestPlan;
 };
-
-export default RoutingEngine;

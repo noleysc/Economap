@@ -3,15 +3,15 @@
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { buildTripPlan } from '@/features/map/components/routing-engine';
 import { generateFakeGasStations, generateFakeProductPrices, generateFakeStores } from '@/lib/fakeData';
 import { useCartStore } from '@/store/useCartStore';
 import { useLocationStore } from '@/store/useLocationStore';
-import { GasStation, Store, TripPlan } from '@/types';
+import { GasStation, Store } from '@/types';
 
 const PriceMap = dynamic(() => import('@/features/map/components/PriceMap').then(mod => mod.PriceMap), { ssr: false });
-const RoutingEngine = dynamic(() => import('@/features/map/components/routing-engine').then(mod => mod.RoutingEngine), { ssr: false });
 
 interface StoreWithCartBalance extends Store {
   cartBalance: number | null;
@@ -22,11 +22,18 @@ export default function Home() {
   const { latitude, longitude, setLocation } = useLocationStore();
 
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
-  const [fakeStores, setFakeStores] = useState<Store[]>([]);
-  const [fakeGasStations, setFakeGasStations] = useState<GasStation[]>([]);
-  const [tripPlan, setTripPlan] = useState<TripPlan | null>(null);
-  const [productPrices, setProductPrices] = useState<{ [storeId: string]: { [productId: string]: number } }>({});
-  const [getRouteDistance, setGetRouteDistance] = useState<((waypoints: { lat: number; lng: number }[]) => Promise<number>) | null>(null);
+  const fakeStores = useMemo<Store[]>(
+    () => (latitude && longitude ? generateFakeStores(10, latitude, longitude, 10000) : []),
+    [latitude, longitude]
+  );
+  const fakeGasStations = useMemo<GasStation[]>(
+    () => (latitude && longitude ? generateFakeGasStations(5, latitude, longitude, 8000) : []),
+    [latitude, longitude]
+  );
+  const productPrices = useMemo(
+    () => (selectedProducts.length > 0 ? generateFakeProductPrices(fakeStores, selectedProducts) : {}),
+    [fakeStores, selectedProducts]
+  );
 
   const storesWithBalances: StoreWithCartBalance[] = useMemo(() => {
     if (selectedProducts.length === 0) {
@@ -80,6 +87,15 @@ export default function Home() {
     () => (latitude && longitude ? { lat: latitude, lng: longitude } : null),
     [latitude, longitude]
   );
+  const tripPlan = useMemo(
+    () => buildTripPlan({
+      userLocation,
+      selectedStore,
+      gasStations: filteredGasStations,
+      shouldGetGas: getGas,
+    }),
+    [filteredGasStations, getGas, selectedStore, userLocation]
+  );
 
   const dynamicWaypoints = useMemo(
     () => {
@@ -109,12 +125,6 @@ export default function Home() {
   }, [filteredGasStations, getGas, tripPlan]);
 
   useEffect(() => {
-    import('@/lib/routingUtils').then(mod => {
-      setGetRouteDistance(() => mod.getRouteDistance);
-    });
-  }, []);
-
-  useEffect(() => {
     if (!navigator.geolocation) {
       return;
     }
@@ -129,33 +139,6 @@ export default function Home() {
       }
     );
   }, [setLocation]);
-
-  const generateAndSetFakeData = useCallback(() => {
-    if (!latitude || !longitude) {
-      return;
-    }
-
-    const stores = generateFakeStores(10, latitude, longitude, 10000);
-    const stations = generateFakeGasStations(5, latitude, longitude, 8000);
-
-    setFakeStores(stores);
-    setFakeGasStations(stations);
-
-    if (selectedProducts.length > 0) {
-      setProductPrices(generateFakeProductPrices(stores, selectedProducts));
-      return;
-    }
-
-    setProductPrices({});
-  }, [latitude, longitude, selectedProducts]);
-
-  useEffect(() => {
-    setTripPlan(null);
-  }, [selectedStoreId, getGas, filteredGasStations, selectedProducts]);
-
-  useEffect(() => {
-    generateAndSetFakeData();
-  }, [generateAndSetFakeData]);
 
   const handleStoreClick = (id: string) => {
     setSelectedStoreId(id);
@@ -183,15 +166,6 @@ export default function Home() {
               gasStations={gasStationsToDisplay}
             />
           </div>
-
-          <RoutingEngine
-            userLocation={userLocation}
-            selectedStore={selectedStore}
-            gasStations={filteredGasStations}
-            shouldGetGas={getGas}
-            getRouteDistance={getRouteDistance}
-            onRouteCalculated={setTripPlan}
-          />
 
           {selectedProducts.length === 0 && (
             <div className="mt-8 w-full max-w-md rounded-lg border border-border bg-white p-6 shadow-lg animate-fade-in">
