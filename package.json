@@ -9,7 +9,9 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "scrape": "tsx scraper.ts",
+    "scrape": "tsx scraper/index.ts",
+    "scrape:json": "tsx scraper/index.ts --json --no-upload",
+    "test": "node --import tsx --test scraper/__tests__/*.test.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
