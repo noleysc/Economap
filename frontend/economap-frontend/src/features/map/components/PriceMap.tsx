@@ -37,6 +37,35 @@ const gasStationIcon = new L.Icon({
   shadowAnchor: [13, 41],
 });
 
+const formatFuelType = (fuelType?: string) => {
+  if (!fuelType) {
+    return null;
+  }
+
+  return fuelType
+    .toLowerCase()
+    .split('_')
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+};
+
+const formatUpdatedTime = (timestamp?: string) => {
+  if (!timestamp) {
+    return null;
+  }
+
+  const parsedDate = new Date(timestamp);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(parsedDate);
+};
+
 export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations, locationErrorMessage }: PriceMapProps) => {
   const { latitude, longitude } = useLocationStore();
 
@@ -102,6 +131,16 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations, locatio
                 >
                   View Details
                 </button>
+                {store.googleMapsUri && (
+                  <a
+                    href={store.googleMapsUri}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-200"
+                  >
+                    Open in Google Maps
+                  </a>
+                )}
               </div>
             </Popup>
           </Marker>
@@ -117,7 +156,23 @@ export const PriceMap = ({ stores, onStoreClick, waypoints, gasStations, locatio
               <div className="font-sans text-foreground">
                 <h3 className="text-lg font-semibold">{station.name}</h3>
                 <p>{station.address}</p>
-                <p>Price: ${station.pricePerGallon.toFixed(2)}/gal</p>
+                <p>
+                  Price: ${station.pricePerGallon.toFixed(2)}/gal
+                  {station.fuelType ? ` (${formatFuelType(station.fuelType)})` : ''}
+                </p>
+                {station.priceUpdatedAt && (
+                  <p>Updated: {formatUpdatedTime(station.priceUpdatedAt)}</p>
+                )}
+                {station.googleMapsUri && (
+                  <a
+                    href={station.googleMapsUri}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-200 transition-colors duration-200 hover:bg-slate-200"
+                  >
+                    Open in Google Maps
+                  </a>
+                )}
               </div>
             </Popup>
           </Marker>

@@ -19,6 +19,8 @@ export interface Store {
     lat: number;
     lng: number;
   };
+  googleMapsUri?: string;
+  source?: 'google_places';
 }
 
 export interface GasStation {
@@ -29,7 +31,11 @@ export interface GasStation {
     lat: number;
     lng: number;
   };
+  fuelType?: string;
+  googleMapsUri?: string;
   pricePerGallon: number;
+  priceUpdatedAt?: string;
+  source?: 'google_places';
 }
 
 export interface NearbySearchParams {

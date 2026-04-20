@@ -1,12 +1,14 @@
 'use client';
 
+import { getLiveGasStations } from '@/GasPrices/client';
+import { getLiveGroceryStores } from '@/GroceryStores/client';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { buildTripPlan } from '@/features/map/components/routing-engine';
-import { getGasStationsNearLocation, getProductPricesForStores, getStoresNearLocation } from '@/lib/dataSource';
+import { getProductPricesForStores } from '@/lib/dataSource';
 import { getRouteMetrics, haversineDistance } from '@/lib/routingUtils';
 import { useCartStore } from '@/store/useCartStore';
 import { useLocationStore } from '@/store/useLocationStore';
@@ -46,11 +48,24 @@ type StoreSortMode = 'best' | 'price' | 'distance';
 
 const METERS_PER_MILE = 1_609.34;
 const MIN_SEARCH_RADIUS_MILES = 2;
-const MAX_SEARCH_RADIUS_MILES = 25;
+const MAX_SEARCH_RADIUS_MILES = 15;
 const DEFAULT_SEARCH_RADIUS_MILES = 7;
 const SECONDS_PER_MINUTE = 60;
+const GAS_CACHE_LOCATION_PRECISION = 3;
+
+interface CachedGasStationsEntry {
+  fetchedRadiusMeters: number;
+  stations: GasStation[];
+}
+
+interface CachedStoresEntry {
+  fetchedRadiusMeters: number;
+  stores: Store[];
+}
 
 const formatMiles = (distanceMeters: number) => `${(distanceMeters / METERS_PER_MILE).toFixed(1)} mi`;
+const buildGasCacheKey = (latitude: number, longitude: number) =>
+  `${latitude.toFixed(GAS_CACHE_LOCATION_PRECISION)}:${longitude.toFixed(GAS_CACHE_LOCATION_PRECISION)}`;
 
 const formatDuration = (durationSeconds: number) => {
   const roundedMinutes = Math.max(1, Math.round(durationSeconds / SECONDS_PER_MINUTE));
@@ -79,6 +94,14 @@ export default function Home() {
   const [storeSortMode, setStoreSortMode] = useState<StoreSortMode>('best');
   const [tripEstimateSummary, setTripEstimateSummary] = useState<TripEstimateSummary | null>(null);
   const [isTripEstimateLoading, setIsTripEstimateLoading] = useState(false);
+  const [storesInRadius, setStoresInRadius] = useState<Store[]>([]);
+  const [storesErrorMessage, setStoresErrorMessage] = useState<string | null>(null);
+  const [isStoresLoading, setIsStoresLoading] = useState(false);
+  const [gasStationsInRadius, setGasStationsInRadius] = useState<GasStation[]>([]);
+  const [gasStationsErrorMessage, setGasStationsErrorMessage] = useState<string | null>(null);
+  const [isGasStationsLoading, setIsGasStationsLoading] = useState(false);
+  const storesCacheRef = useRef<Map<string, CachedStoresEntry>>(new Map());
+  const gasStationsCacheRef = useRef<Map<string, CachedGasStationsEntry>>(new Map());
   const selectedProducts = useMemo<Product[]>(
     () => cartItems.map((item) => item.product),
     [cartItems]
@@ -86,30 +109,6 @@ export default function Home() {
   const searchRadiusMeters = useMemo(
     () => searchRadiusMiles * METERS_PER_MILE,
     [searchRadiusMiles]
-  );
-  const storesInRadius = useMemo<Store[]>(
-    () => (
-      latitude !== null && longitude !== null
-        ? getStoresNearLocation({
-            latitude,
-            longitude,
-            radiusMeters: searchRadiusMeters,
-          })
-        : []
-    ),
-    [latitude, longitude, searchRadiusMeters]
-  );
-  const gasStationsInRadius = useMemo<GasStation[]>(
-    () => (
-      latitude !== null && longitude !== null
-        ? getGasStationsNearLocation({
-            latitude,
-            longitude,
-            radiusMeters: searchRadiusMeters,
-          })
-        : []
-    ),
-    [latitude, longitude, searchRadiusMeters]
   );
   const userLocation = useMemo(
     () => (latitude !== null && longitude !== null ? { lat: latitude, lng: longitude } : null),
@@ -234,9 +233,10 @@ export default function Home() {
       userLocation,
       selectedStore,
       gasStations: filteredGasStations,
+      hasSelectedGroceries: selectedProducts.length > 0,
       shouldGetGas: getGas,
     }),
-    [filteredGasStations, getGas, selectedStore, userLocation]
+    [filteredGasStations, getGas, selectedProducts.length, selectedStore, userLocation]
   );
 
   const dynamicWaypoints = useMemo(
@@ -261,6 +261,162 @@ export default function Home() {
 
     return filteredGasStations;
   }, [filteredGasStations, getGas]);
+
+  useEffect(() => {
+    if (latitude === null || longitude === null) {
+      setStoresInRadius([]);
+      setStoresErrorMessage(null);
+      setIsStoresLoading(false);
+      return;
+    }
+
+    let isActive = true;
+    const abortController = new AbortController();
+    const storesCacheKey = buildGasCacheKey(latitude, longitude);
+    const cachedStores = storesCacheRef.current.get(storesCacheKey);
+
+    if (cachedStores) {
+      const locallyFilteredStores = cachedStores.stores.filter((store) => {
+        const distanceFromUserMeters = haversineDistance(
+          latitude,
+          longitude,
+          store.coordinates.lat,
+          store.coordinates.lng
+        );
+
+        return distanceFromUserMeters <= searchRadiusMeters;
+      });
+
+      setStoresInRadius(locallyFilteredStores);
+
+      if (cachedStores.fetchedRadiusMeters >= searchRadiusMeters) {
+        setStoresErrorMessage(null);
+        setIsStoresLoading(false);
+        return;
+      }
+    }
+
+    const loadStores = async () => {
+      setStoresErrorMessage(null);
+      setIsStoresLoading(true);
+
+      try {
+        const stores = await getLiveGroceryStores({
+          latitude,
+          longitude,
+          radiusMeters: searchRadiusMeters,
+          signal: abortController.signal,
+        });
+
+        if (!isActive) {
+          return;
+        }
+
+        storesCacheRef.current.set(storesCacheKey, {
+          fetchedRadiusMeters: searchRadiusMeters,
+          stores,
+        });
+        setStoresInRadius(stores);
+      } catch (error) {
+        if (!isActive || abortController.signal.aborted) {
+          return;
+        }
+
+        setStoresErrorMessage(
+          error instanceof Error ? error.message : 'Unable to load live grocery stores.'
+        );
+      } finally {
+        if (isActive) {
+          setIsStoresLoading(false);
+        }
+      }
+    };
+
+    void loadStores();
+
+    return () => {
+      isActive = false;
+      abortController.abort();
+    };
+  }, [latitude, longitude, searchRadiusMeters]);
+
+  useEffect(() => {
+    if (!getGas || latitude === null || longitude === null) {
+      setGasStationsInRadius([]);
+      setGasStationsErrorMessage(null);
+      setIsGasStationsLoading(false);
+      return;
+    }
+
+    let isActive = true;
+    const abortController = new AbortController();
+    const gasCacheKey = buildGasCacheKey(latitude, longitude);
+    const cachedGasStations = gasStationsCacheRef.current.get(gasCacheKey);
+
+    if (cachedGasStations) {
+      const locallyFilteredStations = cachedGasStations.stations.filter((station) => {
+        const distanceFromUserMeters = haversineDistance(
+          latitude,
+          longitude,
+          station.coordinates.lat,
+          station.coordinates.lng
+        );
+
+        return distanceFromUserMeters <= searchRadiusMeters;
+      });
+
+      setGasStationsInRadius(locallyFilteredStations);
+
+      if (cachedGasStations.fetchedRadiusMeters >= searchRadiusMeters) {
+        setGasStationsErrorMessage(null);
+        setIsGasStationsLoading(false);
+        return;
+      }
+    }
+
+    const loadGasStations = async () => {
+      setGasStationsErrorMessage(null);
+      setIsGasStationsLoading(true);
+
+      try {
+        const stations = await getLiveGasStations({
+          latitude,
+          longitude,
+          radiusMeters: searchRadiusMeters,
+          signal: abortController.signal,
+        });
+
+        if (!isActive) {
+          return;
+        }
+
+        gasStationsCacheRef.current.set(gasCacheKey, {
+          fetchedRadiusMeters: searchRadiusMeters,
+          stations,
+        });
+        setGasStationsInRadius(stations);
+      } catch (error) {
+        if (!isActive || abortController.signal.aborted) {
+          return;
+        }
+
+        setGasStationsErrorMessage(
+          error instanceof Error ? error.message : 'Unable to load live gas station prices.'
+        );
+      } finally {
+        if (isActive) {
+          setIsGasStationsLoading(false);
+        }
+      }
+    };
+
+    void loadGasStations();
+
+    return () => {
+      isActive = false;
+      abortController.abort();
+    };
+  }, [getGas, latitude, longitude, searchRadiusMeters]);
 
   useEffect(() => {
     if (!tripPlan || tripPlan.orderedStops.length < 2) {
@@ -480,8 +636,22 @@ export default function Home() {
                   <span>{MAX_SEARCH_RADIUS_MILES} miles</span>
                 </div>
                 <p className="mt-4 text-sm text-slate-600">
-                  Showing {storesInRadius.length} grocery stores and {gasStationsInRadius.length} gas stations within {searchRadiusMiles} miles.
+                  {getGas
+                    ? `Showing ${storesInRadius.length} grocery stores and ${gasStationsInRadius.length} live gas stations within ${searchRadiusMiles} miles.`
+                    : `Showing ${storesInRadius.length} grocery stores within ${searchRadiusMiles} miles. Enable Get Gas on the products page to load live gas prices.`}
                 </p>
+                {isStoresLoading && (
+                  <p className="mt-2 text-sm text-slate-500">Loading live grocery stores...</p>
+                )}
+                {storesErrorMessage && (
+                  <p className="mt-2 text-sm text-rose-600">{storesErrorMessage}</p>
+                )}
+                {getGas && isGasStationsLoading && (
+                  <p className="mt-2 text-sm text-slate-500">Loading live gas station prices...</p>
+                )}
+                {getGas && gasStationsErrorMessage && (
+                  <p className="mt-2 text-sm text-rose-600">{gasStationsErrorMessage}</p>
+                )}
               </div>
             </div>
 
