@@ -299,10 +299,12 @@ export const fetchNearbyGroceryStores = async ({
   longitude,
   radiusMeters,
 }: LiveGroceryStoreSearchParams): Promise<Store[]> => {
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY?.trim();
 
   if (!apiKey) {
-    throw new Error('GOOGLE_PLACES_API_KEY is not configured.');
+    throw new Error(
+      'GOOGLE_PLACES_API_KEY is not configured. Add it to .env.local in the Next.js app root and restart the dev server.'
+    );
   }
 
   const clampedRadiusMeters = Math.min(
