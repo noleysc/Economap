@@ -19,6 +19,7 @@ It is deliberately **defensive**: when a retailer serves a bot wall or its DOM s
 | Whole Foods   | `wholefoods` | DOM scrape via Amazon CSA product tiles                  | High                                                         |
 | Meijer        | `meijer`     | DOM scrape via BEM `product-tile__*` classes             | High                                                         |
 | Amazon Fresh  | `amazon`     | DOM scrape of `s-search-result` cards (filters Sponsored)| High; serves a Robot-Check page on aggressive use            |
+| ShopRite      | `shoprite`   | DOM scrape of `ProductCardWrapper` styled-components cards | High                                                       |
 | Kroger        | `kroger`     | DOM scrape; needs a seeded division/store cookie         | Medium (location-dependent, occasionally rate-limited)       |
 | Sam's Club    | `sams`       | DOM scrape with bot-wall detection                       | Low (often serves a CAPTCHA in headless cloud)               |
 
@@ -52,8 +53,8 @@ All flags can also be supplied as env vars (CLI takes precedence).
 
 | Flag                     | Env                                  | Default                | Description |
 |--------------------------|--------------------------------------|------------------------|-------------|
-| `--item=a,b,c`           | `SEARCH_ITEMS`, `SEARCH_ITEM`        | `banana`               | Comma-separated items to scrape |
-| `--stores=walmart,...`   | `STORES`                             | all 5 stores           | Restrict to specific stores |
+| `--item=a,b,c`           | `SEARCH_ITEMS`, `SEARCH_ITEM`        | 10-item default basket | Comma-separated items to scrape (see `DEFAULT_ITEMS` in `scraper/config.ts`) |
+| `--stores=walmart,...`   | `STORES`                             | all 8 stores           | Restrict to specific stores |
 | `--compare-lb=N`         | `COMPARE_LB`                         | `5`                    | Pounds used in the cross-store comparison table |
 | `--attempts=N`           | `ATTEMPTS`                           | `2`                    | Retries per store before giving up |
 | `--headless=true|false`  | `HEADLESS`                           | `true` on CI, else `false` | Run Chromium headless |
@@ -74,6 +75,7 @@ Store-specific overrides:
 |----------------------|----------------|---------------------------------------------------|
 | `KROGER_DIVISION`    | `014`          | Kroger division ID used in cookies                |
 | `KROGER_STORE_CODE`  | `01400375`     | Kroger store code seeded into the cookie jar      |
+| `SHOPRITE_RSID`      | `3000`         | ShopRite store-lookup storefront ID               |
 
 ## Output
 
@@ -159,8 +161,10 @@ scraper/
 │   ├── wholefoods.ts    # CSA product tiles
 │   ├── meijer.ts        # BEM product-tile classes
 │   ├── amazon.ts        # Amazon Fresh search results (skips sponsored)
+│   ├── shoprite.ts      # styled-components ProductCardWrapper articles
 │   └── sams.ts          # bot-wall tolerant DOM scrape
 └── __tests__/
+    ├── assert.test.ts   # assertion / blocked-error helpers
     └── quantity.test.ts # node:test unit tests for parsing
 ```
 

@@ -10,6 +10,7 @@ import { scrapeAmazon } from './stores/amazon.js';
 import { scrapeKroger } from './stores/kroger.js';
 import { scrapeMeijer } from './stores/meijer.js';
 import { scrapeSams } from './stores/sams.js';
+import { scrapeShoprite } from './stores/shoprite.js';
 import { scrapeTarget } from './stores/target.js';
 import { scrapeWalmart } from './stores/walmart.js';
 import { scrapeWholeFoods } from './stores/wholefoods.js';
@@ -24,6 +25,7 @@ const STORE_LABELS: Record<StoreId, string> = {
   wholefoods: 'Whole Foods',
   meijer: 'Meijer',
   amazon: 'Amazon Fresh',
+  shoprite: 'ShopRite',
 };
 
 const SCRAPERS: Record<StoreId, (browser: Browser, item: string) => Promise<Listing | null>> = {
@@ -34,6 +36,7 @@ const SCRAPERS: Record<StoreId, (browser: Browser, item: string) => Promise<List
   wholefoods: scrapeWholeFoods,
   meijer: scrapeMeijer,
   amazon: scrapeAmazon,
+  shoprite: scrapeShoprite,
 };
 
 async function runStore(

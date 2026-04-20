@@ -19,7 +19,24 @@ const ALL_STORES: StoreId[] = [
   'wholefoods',
   'meijer',
   'amazon',
+  'shoprite',
   'sams',
+];
+
+// Default basket when --item / SEARCH_ITEMS is not provided. Covers a cross-
+// category staple mix so the scraper exercises most of the quantity
+// normalization paths (weight-based, each-based, count-based).
+const DEFAULT_ITEMS = [
+  'banana',
+  'milk',
+  'eggs',
+  'bread',
+  'rice',
+  'chicken breast',
+  'ground beef',
+  'apple',
+  'onion',
+  'potato',
 ];
 
 function parseList(s: string | undefined): string[] {
@@ -42,7 +59,7 @@ export function loadConfig(argv: string[] = process.argv.slice(2)): CliFlags {
   }
 
   const itemsArg = args.get('item') ?? args.get('items') ?? process.env.SEARCH_ITEMS ?? process.env.SEARCH_ITEM;
-  const items = (parseList(itemsArg).length ? parseList(itemsArg) : ['banana']).map((s) => s.toLowerCase());
+  const items = (parseList(itemsArg).length ? parseList(itemsArg) : DEFAULT_ITEMS).map((s) => s.toLowerCase());
 
   const storesArg = args.get('stores') ?? process.env.STORES;
   const requestedStores = parseList(storesArg).filter((s) => (ALL_STORES as string[]).includes(s)) as StoreId[];

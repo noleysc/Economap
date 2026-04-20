@@ -23,7 +23,8 @@ export type StoreId =
   | 'kroger'
   | 'wholefoods'
   | 'meijer'
-  | 'amazon';
+  | 'amazon'
+  | 'shoprite';
 
 export interface StoreResult {
   store: StoreId;
